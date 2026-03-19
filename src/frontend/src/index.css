@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.375rem;
+
+    /* Backgrounds */
+    --background: 0.965 0.012 220;
+    --foreground: 0.24 0.012 240;
+
+    /* Card */
+    --card: 1 0 0;
+    --card-foreground: 0.24 0.012 240;
+
+    /* Popover */
+    --popover: 1 0 0;
+    --popover-foreground: 0.24 0.012 240;
+
+    /* Primary: teal accent */
+    --primary: 0.62 0.095 185;
+    --primary-foreground: 1 0 0;
+
+    /* Secondary */
+    --secondary: 0.94 0.016 220;
+    --secondary-foreground: 0.28 0.07 240;
+
+    /* Muted */
+    --muted: 0.95 0.012 220;
+    --muted-foreground: 0.52 0.012 240;
+
+    /* Accent */
+    --accent: 0.955 0.018 220;
+    --accent-foreground: 0.28 0.07 240;
+
+    /* Destructive */
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 1 0 0;
+
+    /* Borders */
+    --border: 0.91 0.015 220;
+    --input: 0.91 0.015 220;
+    --ring: 0.62 0.095 185;
+
+    /* Charts */
+    --chart-1: 0.62 0.095 185;
+    --chart-2: 0.646 0.222 41.116;
+    --chart-3: 0.6 0.118 184.704;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.577 0.245 27.325;
+
+    /* Sidebar */
+    --sidebar: 1 0 0;
+    --sidebar-foreground: 0.24 0.012 240;
+    --sidebar-primary: 0.62 0.095 185;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.955 0.018 220;
+    --sidebar-accent-foreground: 0.28 0.07 240;
+    --sidebar-border: 0.91 0.015 220;
+    --sidebar-ring: 0.62 0.095 185;
+
+    /* Custom pharmacy tokens */
+    --navbar-from: 0.28 0.065 240;
+    --navbar-to: 0.22 0.055 240;
+    --success-bg: 0.94 0.04 155;
+    --success-text: 0.49 0.1 155;
+    --warning-bg: 0.95 0.05 65;
+    --warning-text: 0.48 0.1 65;
+    --danger-bg: 0.95 0.05 27;
+    --danger-text: 0.52 0.18 27;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans text-sm;
+  }
+}
