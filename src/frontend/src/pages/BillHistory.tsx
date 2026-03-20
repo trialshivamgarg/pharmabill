@@ -166,15 +166,15 @@ function buildInvoiceHtml(
       max-width: 210mm;
     }
     .outer-border { border: 2px solid #000; padding: 0; }
-    .header-section { padding: 8px 12px 6px; text-align: center; border-bottom: 1px solid #000; }
+    .header-section { padding: 4px 12px 3px; text-align: center; border-bottom: 1px solid #000; }
     .company-name {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       letter-spacing: 1px;
       text-transform: uppercase;
-      margin-bottom: 3px;
+      margin-bottom: 1px;
     }
-    .company-sub { font-size: 10px; line-height: 1.7; }
+    .company-sub { font-size: 9.5px; line-height: 1.3; }
     .invoice-title {
       text-align: center;
       font-size: 13px;
@@ -182,16 +182,16 @@ function buildInvoiceHtml(
       letter-spacing: 3px;
       border-top: 1px solid #000;
       border-bottom: 1px solid #000;
-      padding: 4px;
+      padding: 2px;
       background: #f0f0f0;
     }
     .bill-meta {
       display: flex;
       justify-content: space-between;
-      padding: 6px 12px;
+      padding: 3px 12px;
       border-bottom: 1px solid #000;
-      font-size: 11px;
-      line-height: 2;
+      font-size: 10px;
+      line-height: 1.5;
     }
     .lbl { color: #444; }
     table.items {
@@ -224,12 +224,6 @@ function buildInvoiceHtml(
       border-top: 2px solid #000;
       padding: 5px 8px;
     }
-    .amount-words {
-      border-top: 1px solid #ccc;
-      border-bottom: 1px solid #ccc;
-      padding: 5px 12px;
-      font-size: 10.5px;
-      background: #fafafa;
     }
     .bottom-section {
       display: flex;
@@ -323,9 +317,6 @@ function buildInvoiceHtml(
     </tbody>
   </table>
 
-  <div class="amount-words">
-    <strong>Amount in Words:</strong> ${amountInWords}
-  </div>
 
   <div class="bottom-section">
     <div class="terms-side">
