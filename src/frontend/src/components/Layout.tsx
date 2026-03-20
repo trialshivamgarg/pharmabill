@@ -7,6 +7,7 @@ import {
   Bell,
   ChevronRight,
   ClipboardList,
+  Database,
   FileText,
   History,
   LayoutDashboard,
@@ -14,11 +15,18 @@ import {
   Package,
   Pill,
   RotateCcw,
+  Settings,
   ShoppingCart,
   Truck,
   Users,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { useSyncPending } from "../hooks/useSyncPending";
 
 const NAV_LINKS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +40,8 @@ const NAV_LINKS = [
   { to: "/purchase-entry", label: "Purchase Entry", icon: ShoppingCart },
   { to: "/purchase-history", label: "Purchase History", icon: ClipboardList },
   { to: "/reports", label: "Reports", icon: BarChart3 },
+  { to: "/pharmacy-profile", label: "Pharmacy Profile", icon: Settings },
+  { to: "/backup-restore", label: "Backup & Restore", icon: Database },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -39,6 +49,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const principal = identity?.getPrincipal().toString();
   const initials = principal ? principal.slice(0, 2).toUpperCase() : "PH";
+  const { isOnline } = useOnlineStatus();
+  const prevOnlineRef = useRef(isOnline);
+
+  // Activate sync-on-reconnect
+  useSyncPending();
+
+  // Show toast when going offline
+  useEffect(() => {
+    if (prevOnlineRef.current && !isOnline) {
+      toast.warning(
+        "You are offline. Bills and changes will be saved and synced when back online.",
+        {
+          duration: 5000,
+        },
+      );
+    }
+    prevOnlineRef.current = isOnline;
+  }, [isOnline]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -82,6 +110,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Online/Offline indicator */}
+          <div
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+              isOnline
+                ? "bg-green-500/20 text-green-200"
+                : "bg-red-500/20 text-red-200"
+            }`}
+            data-ocid="nav.online_status.toggle"
+            title={isOnline ? "Connected" : "Offline — changes saved locally"}
+          >
+            {isOnline ? (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                <Wifi className="h-3 w-3" />
+                <span>Online</span>
+              </>
+            ) : (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                <WifiOff className="h-3 w-3" />
+                <span>Offline</span>
+              </>
+            )}
+          </div>
+
           <button
             type="button"
             className="text-white/70 hover:text-white p-1.5 rounded hover:bg-white/10 transition-colors"
@@ -136,6 +189,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+
+          {/* Offline banner in sidebar */}
+          {!isOnline && (
+            <div className="mx-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
+              <div className="flex items-center gap-1.5 text-amber-700">
+                <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
+                <p className="text-[10px] font-medium leading-tight">
+                  Offline mode — changes saved locally
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mt-auto p-3 border-t border-border">
             <p className="text-[10px] text-muted-foreground text-center">
               PharmaBill v1.0

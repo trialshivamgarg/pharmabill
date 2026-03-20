@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Download, Eye, Printer, Search } from "lucide-react";
 import { useState } from "react";
+import { getPharmacyProfile } from "../hooks/usePharmacyProfile";
 import {
   type Bill,
   useGetBills,
@@ -106,6 +107,7 @@ function buildInvoiceHtml(
   medMap: Record<string, any>,
 ): string {
   const cust = custMap[String(bill.customerId)];
+  const profile = getPharmacyProfile();
   const grandTotalNum = Math.round(Number(bill.grandTotal));
   const subtotalNum = Number(bill.subtotal);
   const totalGSTNum = Number(bill.totalGST);
@@ -206,12 +208,6 @@ function buildInvoiceHtml(
       font-size: 9.5px;
       white-space: nowrap;
     }
-    .totals-section {
-      padding: 6px 12px;
-      display: flex;
-      justify-content: flex-end;
-      border-top: 1px solid #000;
-    }
     table.totals {
       border-collapse: collapse;
       min-width: 280px;
@@ -235,24 +231,39 @@ function buildInvoiceHtml(
       font-size: 10.5px;
       background: #fafafa;
     }
-    .footer-section {
+    .bottom-section {
       display: flex;
       justify-content: space-between;
-      padding: 8px 12px 6px;
-      border-top: 1px solid #ccc;
+      align-items: flex-end;
+      padding: 8px 12px;
+      border-top: 1px solid #000;
       font-size: 10px;
     }
-    .terms { max-width: 60%; line-height: 1.7; }
-    .signatory { text-align: right; }
-    .sign-line {
-      border-top: 1px solid #000;
-      width: 150px;
-      margin-top: 30px;
-      margin-left: auto;
-      text-align: center;
-      padding-top: 4px;
-      font-weight: bold;
+    .terms-side {
+      flex: 1 1 55%;
+      max-width: 55%;
+      line-height: 1.8;
+    }
+    .remark-line {
+      margin-top: 8px;
       font-size: 10px;
+    }
+    .sign-center {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      min-width: 160px;
+      padding: 0 12px;
+    }
+    .totals-side { min-width: 280px; }
+    .grand-total-words-bar {
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+      padding: 5px 12px;
+      font-size: 10.5px;
+      background: #fafafa;
+      text-align: right;
     }
     .get-well {
       text-align: center;
@@ -268,11 +279,11 @@ function buildInvoiceHtml(
 <div class="outer-border">
 
   <div class="header-section">
-    <div class="company-name">AMBICURE HEALTHCARE AND PHARMACY</div>
+    <div class="company-name">${profile.name}</div>
     <div class="company-sub">
-      F 13 Street No 6, Brahampuri, Moni Baba Mandir Road, Delhi 110053<br/>
-      Ph: 9953774706 &nbsp;|&nbsp; Email: AMBICUREHEALTHCARE@GMAIL.COM<br/>
-      GSTIN: 07BXUPG3995C1Z1 &nbsp;|&nbsp; D.L.No.: RLF20DL2025001813 / 1805
+      ${profile.address1}${profile.address2 ? `, ${profile.address2}` : ""}<br/>
+      Ph: ${profile.phone} &nbsp;|&nbsp; Email: ${profile.email}<br/>
+      GSTIN: ${profile.gstin} &nbsp;|&nbsp; D.L.No.: ${profile.dlNo1} / ${profile.dlNo2}
     </div>
   </div>
 
@@ -281,13 +292,13 @@ function buildInvoiceHtml(
   <div class="bill-meta">
     <div class="bill-meta-left">
       <div><span class="lbl">Patient Name : </span><strong>${cust?.name ?? "Walk-in Customer"}</strong></div>
+      <div><span class="lbl">Ph. No &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: </span>${cust?.phone ?? "—"}</div>
       <div><span class="lbl">Doctor Name &nbsp;: </span><strong>${cust?.email ?? "—"}</strong></div>
       <div><span class="lbl">Doctor Reg No: </span>${cust?.address ?? "—"}</div>
     </div>
     <div class="bill-meta-right" style="text-align:right">
       <div><span class="lbl">Invoice No : </span><strong>${billNo(bill.billNumber)}</strong></div>
       <div><span class="lbl">Date &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: </span><strong>${fmtDate(bill.billDate)}</strong></div>
-      <div><span class="lbl">Phone &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: </span>${cust?.phone ?? "—"}</div>
     </div>
   </div>
 
@@ -312,45 +323,57 @@ function buildInvoiceHtml(
     </tbody>
   </table>
 
-  <div class="totals-section">
-    <table class="totals">
-      <tr>
-        <td>Sub Total</td>
-        <td style="text-align:right">₹${subtotalNum.toFixed(2)}</td>
-      </tr>
-      <tr>
-        <td>SGST 2.5%</td>
-        <td style="text-align:right">₹${sgst.toFixed(2)}</td>
-      </tr>
-      <tr>
-        <td>CGST 2.5%</td>
-        <td style="text-align:right">₹${cgst.toFixed(2)}</td>
-      </tr>
-      <tr>
-        <td>Roundoff</td>
-        <td style="text-align:right">${roundoff >= 0 ? "+" : ""}${roundoff.toFixed(2)}</td>
-      </tr>
-      <tr class="grand">
-        <td>Grand Total</td>
-        <td style="text-align:right">₹${grandTotalNum.toLocaleString("en-IN")}.00</td>
-      </tr>
-    </table>
-  </div>
-
   <div class="amount-words">
     <strong>Amount in Words:</strong> ${amountInWords}
   </div>
 
-  <div class="footer-section">
-    <div class="terms">
-      <strong>Terms &amp; Conditions:</strong><br/>
-      1. Goods once sold will not be taken back or exchanged.<br/>
-      2. Subject to Delhi jurisdiction only.<br/>
-      3. All disputes subject to Delhi courts.
+  <div class="bottom-section">
+    <div class="terms-side">
+      <div>
+        <strong>Terms &amp; Conditions:</strong><br/>
+        1. Goods once sold will not be taken back or exchanged.<br/>
+        2. Bills not paid due date will attract 24% interest.<br/>
+        3. All disputes subject to Jurisdication only.<br/>
+        4. Prescribed Sales Tax declaration will be given.
+      </div>
+      <div class="remark-line">
+        <strong>Remark :</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      </div>
     </div>
-    <div class="signatory">
-      <div class="sign-line">Authorized Signatory</div>
+    <div class="sign-center">
+      <div style="text-align:center">
+        <div style="font-weight:bold;font-size:11px;margin-bottom:40px">For ${profile.name}</div>
+        <div style="border-top:1px solid #000;padding-top:4px;font-size:10px;font-weight:bold">Authorised Signatory</div>
+      </div>
     </div>
+    <div class="totals-side">
+      <table class="totals">
+        <tr>
+          <td>Sub Total</td>
+          <td style="text-align:right">₹${subtotalNum.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td>SGST 2.5%</td>
+          <td style="text-align:right">₹${sgst.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td>CGST 2.5%</td>
+          <td style="text-align:right">₹${cgst.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td>Roundoff</td>
+          <td style="text-align:right">${roundoff >= 0 ? "+" : ""}${roundoff.toFixed(2)}</td>
+        </tr>
+        <tr class="grand">
+          <td>Grand Total</td>
+          <td style="text-align:right">₹${grandTotalNum.toLocaleString("en-IN")}.00</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="grand-total-words-bar">
+    <strong>Grand Total in Words:</strong> ${amountInWords}
   </div>
 
   <div class="get-well">*** Get Well Soon ***</div>
@@ -401,7 +424,6 @@ export default function BillHistory() {
     if (w) {
       w.document.write(html);
       w.document.close();
-      // Give browser time to render, then trigger print (save as PDF)
       setTimeout(() => {
         w.print();
       }, 600);

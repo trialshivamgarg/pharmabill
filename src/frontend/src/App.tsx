@@ -7,12 +7,14 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import Layout from "./components/Layout";
+import BackupRestore from "./pages/BackupRestore";
 import BillHistory from "./pages/BillHistory";
 import Customers from "./pages/Customers";
 import Dashboard from "./pages/Dashboard";
 import Distributors from "./pages/Distributors";
 import Inventory from "./pages/Inventory";
 import NewBill from "./pages/NewBill";
+import PharmacyProfile from "./pages/PharmacyProfile";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import PurchaseHistory from "./pages/PurchaseHistory";
 import PurchaseReturn from "./pages/PurchaseReturn";
@@ -78,10 +80,20 @@ const purchaseEntryRoute = createRoute({
   path: "/purchase-entry",
   component: PurchaseEntry,
 });
+const pharmacyProfileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pharmacy-profile",
+  component: PharmacyProfile,
+});
 const purchaseHistoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/purchase-history",
   component: PurchaseHistory,
+});
+const backupRestoreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/backup-restore",
+  component: BackupRestore,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -96,6 +108,8 @@ const routeTree = rootRoute.addChildren([
   distributorsRoute,
   purchaseEntryRoute,
   purchaseHistoryRoute,
+  pharmacyProfileRoute,
+  backupRestoreRoute,
 ]);
 
 const router = createRouter({ routeTree });

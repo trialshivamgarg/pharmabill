@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { INDIAN_MEDICINES } from "../data/indianMedicines";
 import {
   type Medicine,
   PaymentMode,
@@ -62,10 +63,10 @@ interface BillRow {
 }
 
 function calcRow(row: BillRow) {
-  const subtotal = row.qty * row.unitPrice;
-  const gstAmt = (subtotal * row.gstPct) / 100;
-  const total = subtotal + gstAmt;
-  return { subtotal, gstAmt, total };
+  const total = row.qty * row.unitPrice; // MRP × Qty, already GST-inclusive
+  const baseAmt = total / (1 + row.gstPct / 100); // pre-GST taxable amount
+  const gstAmt = total - baseAmt;
+  return { subtotal: baseAmt, gstAmt, total };
 }
 
 let rowCounter = 0;
@@ -176,13 +177,41 @@ export default function NewBill() {
 
   const effectiveInvoiceNo = invoiceNo.trim() || defaultBillNoStr;
 
-  const filteredMeds = useMemo(
-    () =>
-      medicines
-        .filter((m) => m.name.toLowerCase().includes(medSearch.toLowerCase()))
-        .slice(0, 8),
-    [medicines, medSearch],
-  );
+  const filteredMeds = useMemo(() => {
+    const lower = medSearch.toLowerCase();
+    const backendNames = new Set(medicines.map((m) => m.name.toLowerCase()));
+    const backendMatches = medicines
+      .filter((m) => m.name.toLowerCase().includes(lower))
+      .slice(0, 8);
+    if (backendMatches.length >= 8 || !lower) return backendMatches;
+    // Fill remaining slots from catalog
+    const catalogMatches = INDIAN_MEDICINES.filter(
+      (m) =>
+        m.name.toLowerCase().includes(lower) &&
+        !backendNames.has(m.name.toLowerCase()),
+    )
+      .slice(0, 8 - backendMatches.length)
+      .map(
+        (m) =>
+          ({
+            id: -1n,
+            name: m.name,
+            genericName: m.genericName,
+            manufacturer: m.manufacturer,
+            batchNumber: "",
+            expiryDate: "",
+            currentStock: 0n,
+            reorderLevel: 10n,
+            sellingPrice: 0n,
+            purchasePrice: 0n,
+            gstPercent: BigInt(m.gstPercent),
+            unit: m.unit === "bottle" ? Unit.bottle : Unit.strip,
+            hsnCode: m.hsnCode,
+            rackLocation: "",
+          }) as Medicine,
+      );
+    return [...backendMatches, ...catalogMatches];
+  }, [medicines, medSearch]);
   const filteredCustomers = useMemo(
     () =>
       customers
@@ -201,9 +230,20 @@ export default function NewBill() {
       r.map((row) => (row.rowKey === key ? { ...row, ...patch } : row)),
     );
 
-  const selectMedicine = (key: string, med: Medicine) => {
+  const selectMedicine = async (key: string, med: Medicine) => {
+    let resolvedId = med.id;
+    // Catalog-only medicine (not yet saved to backend) — auto-save it
+    if (med.id === -1n) {
+      try {
+        const newId = await addMedicine.mutateAsync({ ...med, id: 0n });
+        resolvedId = newId ?? 0n;
+      } catch {
+        // Save failed — use 0n so validation prompts the user
+        resolvedId = 0n;
+      }
+    }
     updateRow(key, {
-      medicineId: med.id,
+      medicineId: resolvedId,
       medicineName: med.name,
       batch: med.batchNumber,
       expiry: med.expiryDate,
@@ -251,7 +291,7 @@ export default function NewBill() {
         rackLocation: "",
       };
       const newId = await addMedicine.mutateAsync(medPayload);
-      const createdMed: Medicine = { ...medPayload, id: newId };
+      const createdMed: Medicine = { ...medPayload, id: newId ?? 0n };
       if (newMedRowKey) {
         updateRow(newMedRowKey, {
           medicineId: createdMed.id,
@@ -307,7 +347,7 @@ export default function NewBill() {
         email: newCustDoctor.trim(),
         address: newCustAddress.trim(),
       });
-      setCustomerId(String(newId));
+      setCustomerId(String(newId ?? 0n));
       setPatientName(newCustName.trim());
       setPatientPhone(newCustPhone.trim());
       setDoctorName(newCustDoctor.trim());
@@ -372,7 +412,7 @@ export default function NewBill() {
         address: doctorRegNo.trim(),
       });
       await executeSave(
-        newId,
+        newId ?? 0n,
         pendingRowsRef.current,
         pendingPaymentRef.current,
       );
@@ -395,7 +435,7 @@ export default function NewBill() {
         address: doctorRegNo.trim(),
       });
       await executeSave(
-        newId,
+        newId ?? 0n,
         pendingRowsRef.current,
         pendingPaymentRef.current,
       );
@@ -1277,7 +1317,7 @@ export default function NewBill() {
             </CardHeader>
             <CardContent className="px-5 pb-4 space-y-2">
               <div className="flex justify-between text-[13px]">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-muted-foreground">Taxable Amt</span>
                 <span>₹{totals.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-[13px]">

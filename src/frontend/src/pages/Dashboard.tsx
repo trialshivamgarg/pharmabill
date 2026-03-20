@@ -14,11 +14,13 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   Clock,
+  Database,
   FileText,
   IndianRupee,
   Package,
   RotateCcw,
   ShoppingCart,
+  Upload,
 } from "lucide-react";
 import {
   useGetBills,
@@ -116,6 +118,24 @@ const QUICK_ACTIONS = [
     bg: "bg-purple-50",
     border: "border-purple-100 hover:border-purple-300",
   },
+  {
+    label: "Backup Data",
+    description: "Export all pharmacy data",
+    icon: Database,
+    to: "/backup-restore",
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+    border: "border-teal-100 hover:border-teal-300",
+  },
+  {
+    label: "Restore Data",
+    description: "Import from a backup file",
+    icon: Upload,
+    to: "/backup-restore",
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    border: "border-rose-100 hover:border-rose-300",
+  },
 ];
 
 export default function Dashboard() {
@@ -180,10 +200,10 @@ export default function Dashboard() {
         <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((action) => (
             <button
-              key={action.to}
+              key={action.label}
               type="button"
               onClick={() => navigate({ to: action.to })}
               className={`flex items-center gap-3 p-4 rounded-lg border bg-white transition-all hover:shadow-md cursor-pointer text-left ${action.border}`}

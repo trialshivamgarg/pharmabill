@@ -17,23 +17,14 @@ actor {
   let userProfiles = Map.empty<Principal, UserProfile>();
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
     userProfiles.get(user);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
     userProfiles.add(caller, profile);
   };
 
@@ -106,7 +97,6 @@ actor {
     lowStockMedicinesCount : Nat;
   };
 
-  // New types for distributors and purchases
   public type Distributor = {
     id : Nat;
     name : Text;
@@ -162,86 +152,15 @@ actor {
     if (initialized) { return };
     initialized := true;
 
-    let sampleMedicines : [Medicine] = [
-      {
-        id = 1; name = "Paracetamol 500mg"; genericName = "Paracetamol";
-        manufacturer = "PharmaCo"; batchNumber = "PC001"; expiryDate = "2025-12-31";
-        hsnCode = "30049011"; unit = #tablet; purchasePrice = 2; sellingPrice = 5;
-        gstPercent = 12; currentStock = 500; reorderLevel = 100; rackLocation = "A1";
-      },
-      {
-        id = 2; name = "Amoxicillin 250mg"; genericName = "Amoxicillin";
-        manufacturer = "MediLabs"; batchNumber = "ML002"; expiryDate = "2025-10-15";
-        hsnCode = "30049012"; unit = #strip; purchasePrice = 15; sellingPrice = 30;
-        gstPercent = 12; currentStock = 200; reorderLevel = 50; rackLocation = "A2";
-      },
-      {
-        id = 3; name = "Cough Syrup"; genericName = "Dextromethorphan";
-        manufacturer = "HealthPlus"; batchNumber = "HP003"; expiryDate = "2026-03-20";
-        hsnCode = "30049013"; unit = #bottle; purchasePrice = 50; sellingPrice = 100;
-        gstPercent = 18; currentStock = 80; reorderLevel = 20; rackLocation = "B1";
-      },
-      {
-        id = 4; name = "Aspirin 75mg"; genericName = "Acetylsalicylic Acid";
-        manufacturer = "CardioMed"; batchNumber = "CM004"; expiryDate = "2025-08-10";
-        hsnCode = "30049014"; unit = #tablet; purchasePrice = 3; sellingPrice = 7;
-        gstPercent = 12; currentStock = 300; reorderLevel = 80; rackLocation = "A3";
-      },
-      {
-        id = 5; name = "Vitamin D3"; genericName = "Cholecalciferol";
-        manufacturer = "VitaLife"; batchNumber = "VL005"; expiryDate = "2026-06-30";
-        hsnCode = "30049015"; unit = #tablet; purchasePrice = 10; sellingPrice = 20;
-        gstPercent = 12; currentStock = 150; reorderLevel = 40; rackLocation = "C1";
-      },
-      {
-        id = 6; name = "Ibuprofen 400mg"; genericName = "Ibuprofen";
-        manufacturer = "PainRelief Inc"; batchNumber = "PR006"; expiryDate = "2025-11-25";
-        hsnCode = "30049016"; unit = #tablet; purchasePrice = 4; sellingPrice = 9;
-        gstPercent = 12; currentStock = 400; reorderLevel = 100; rackLocation = "A4";
-      },
-      {
-        id = 7; name = "Cetirizine 10mg"; genericName = "Cetirizine";
-        manufacturer = "AllergyFree"; batchNumber = "AF007"; expiryDate = "2026-01-15";
-        hsnCode = "30049017"; unit = #tablet; purchasePrice = 2; sellingPrice = 5;
-        gstPercent = 12; currentStock = 250; reorderLevel = 60; rackLocation = "B2";
-      },
-      {
-        id = 8; name = "Omeprazole 20mg"; genericName = "Omeprazole";
-        manufacturer = "GastroCare"; batchNumber = "GC008"; expiryDate = "2025-09-30";
-        hsnCode = "30049018"; unit = #strip; purchasePrice = 8; sellingPrice = 18;
-        gstPercent = 12; currentStock = 180; reorderLevel = 50; rackLocation = "B3";
-      },
-      {
-        id = 9; name = "Metformin 500mg"; genericName = "Metformin";
-        manufacturer = "DiabetesCare"; batchNumber = "DC009"; expiryDate = "2026-04-20";
-        hsnCode = "30049019"; unit = #tablet; purchasePrice = 5; sellingPrice = 12;
-        gstPercent = 12; currentStock = 90; reorderLevel = 100; rackLocation = "C2";
-      },
-      {
-        id = 10; name = "Antibiotic Ointment"; genericName = "Neomycin";
-        manufacturer = "SkinCare Ltd"; batchNumber = "SC010"; expiryDate = "2025-07-10";
-        hsnCode = "30049020"; unit = #bottle; purchasePrice = 30; sellingPrice = 60;
-        gstPercent = 18; currentStock = 60; reorderLevel = 25; rackLocation = "D1";
-      },
-    ];
-
-    for (med in sampleMedicines.vals()) {
-      medicines.add(med.id, med);
-    };
-    nextMedicineId := 11;
-
     let sampleCustomers : [Customer] = [
       { id = 1; name = "John Doe"; phone = "9876543210"; address = "123 Main St"; email = "john@example.com" },
       { id = 2; name = "Jane Smith"; phone = "9876543211"; address = "456 Oak Ave"; email = "jane@example.com" },
-      { id = 3; name = "Bob Johnson"; phone = "9876543212"; address = "789 Pine Rd"; email = "bob@example.com" },
-      { id = 4; name = "Alice Williams"; phone = "9876543213"; address = "321 Elm St"; email = "alice@example.com" },
-      { id = 5; name = "Charlie Brown"; phone = "9876543214"; address = "654 Maple Dr"; email = "charlie@example.com" },
     ];
 
     for (cust in sampleCustomers.vals()) {
       customers.add(cust.id, cust);
     };
-    nextCustomerId := 6;
+    nextCustomerId := 3;
 
     let sampleDistributors : [Distributor] = [
       {
@@ -260,11 +179,8 @@ actor {
     nextDistributorId := 3;
   };
 
-  // Medicine CRUD - Admin only for modifications, users can read
-  public shared ({ caller }) func addMedicine(med : Medicine) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can add medicines");
-    };
+  // Medicine CRUD - open to all users (no login required)
+  public shared func addMedicine(med : Medicine) : async Nat {
     let id = nextMedicineId;
     nextMedicineId += 1;
     let newMed = { med with id };
@@ -272,48 +188,33 @@ actor {
     id;
   };
 
-  public shared ({ caller }) func updateMedicine(med : Medicine) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can update medicines");
-    };
+  public shared func updateMedicine(med : Medicine) : async () {
     switch (medicines.get(med.id)) {
       case (null) { Runtime.trap("Medicine not found") };
       case (?_) { medicines.add(med.id, med) };
     };
   };
 
-  public shared ({ caller }) func deleteMedicine(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete medicines");
-    };
+  public shared func deleteMedicine(id : Nat) : async () {
     switch (medicines.get(id)) {
       case (null) { Runtime.trap("Medicine not found") };
       case (?_) { medicines.remove(id) };
     };
   };
 
-  public query ({ caller }) func getMedicine(id : Nat) : async Medicine {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view medicines");
-    };
+  public query func getMedicine(id : Nat) : async Medicine {
     switch (medicines.get(id)) {
       case (null) { Runtime.trap("Medicine not found") };
       case (?med) { med };
     };
   };
 
-  public query ({ caller }) func getAllMedicines() : async [Medicine] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view medicines");
-    };
+  public query func getAllMedicines() : async [Medicine] {
     medicines.values().toArray();
   };
 
-  // Customer CRUD - Users can manage
-  public shared ({ caller }) func addCustomer(cust : Customer) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add customers");
-    };
+  // Customer CRUD - open to all users
+  public shared func addCustomer(cust : Customer) : async Nat {
     let id = nextCustomerId;
     nextCustomerId += 1;
     let newCust = { cust with id };
@@ -321,48 +222,33 @@ actor {
     id;
   };
 
-  public shared ({ caller }) func updateCustomer(cust : Customer) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update customers");
-    };
+  public shared func updateCustomer(cust : Customer) : async () {
     switch (customers.get(cust.id)) {
       case (null) { Runtime.trap("Customer not found") };
       case (?_) { customers.add(cust.id, cust) };
     };
   };
 
-  public shared ({ caller }) func deleteCustomer(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete customers");
-    };
+  public shared func deleteCustomer(id : Nat) : async () {
     switch (customers.get(id)) {
       case (null) { Runtime.trap("Customer not found") };
       case (?_) { customers.remove(id) };
     };
   };
 
-  public query ({ caller }) func getCustomer(id : Nat) : async Customer {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view customers");
-    };
+  public query func getCustomer(id : Nat) : async Customer {
     switch (customers.get(id)) {
       case (null) { Runtime.trap("Customer not found") };
       case (?cust) { cust };
     };
   };
 
-  public query ({ caller }) func getAllCustomers() : async [Customer] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view customers");
-    };
+  public query func getAllCustomers() : async [Customer] {
     customers.values().toArray();
   };
 
-  // Billing - Users can create and view bills
-  public shared ({ caller }) func createBill(bill : Bill) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create bills");
-    };
+  // Billing - open to all users
+  public shared func createBill(bill : Bill) : async Nat {
     let id = nextBillId;
     nextBillId += 1;
     let billNumber = nextBillNumber;
@@ -372,28 +258,19 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getBill(id : Nat) : async Bill {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view bills");
-    };
+  public query func getBill(id : Nat) : async Bill {
     switch (bills.get(id)) {
       case (null) { Runtime.trap("Bill not found") };
       case (?bill) { bill };
     };
   };
 
-  public query ({ caller }) func getAllBills() : async [Bill] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view bills");
-    };
+  public query func getAllBills() : async [Bill] {
     bills.values().toArray();
   };
 
-  // Dashboard Stats - Users can view
-  public query ({ caller }) func getDashboardStats() : async DashboardStats {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view dashboard stats");
-    };
+  // Dashboard Stats
+  public query func getDashboardStats() : async DashboardStats {
     let now = Time.now();
     let oneDayNanos = 24 * 60 * 60 * 1_000_000_000;
     let todayStart = now - (now % oneDayNanos);
@@ -426,11 +303,8 @@ actor {
     };
   };
 
-  // Distributor CRUD - Admin only for modifications, users can read
-  public shared ({ caller }) func addDistributor(dist : Distributor) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can add distributors");
-    };
+  // Distributor CRUD - open to all users
+  public shared func addDistributor(dist : Distributor) : async Nat {
     let id = nextDistributorId;
     nextDistributorId += 1;
     let newDist = { dist with id };
@@ -438,48 +312,33 @@ actor {
     id;
   };
 
-  public shared ({ caller }) func updateDistributor(dist : Distributor) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can update distributors");
-    };
+  public shared func updateDistributor(dist : Distributor) : async () {
     switch (distributors.get(dist.id)) {
       case (null) { Runtime.trap("Distributor not found") };
       case (?_) { distributors.add(dist.id, dist) };
     };
   };
 
-  public shared ({ caller }) func deleteDistributor(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete distributors");
-    };
+  public shared func deleteDistributor(id : Nat) : async () {
     switch (distributors.get(id)) {
       case (null) { Runtime.trap("Distributor not found") };
       case (?_) { distributors.remove(id) };
     };
   };
 
-  public query ({ caller }) func getDistributor(id : Nat) : async Distributor {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view distributors");
-    };
+  public query func getDistributor(id : Nat) : async Distributor {
     switch (distributors.get(id)) {
       case (null) { Runtime.trap("Distributor not found") };
       case (?dist) { dist };
     };
   };
 
-  public query ({ caller }) func getAllDistributors() : async [Distributor] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view distributors");
-    };
+  public query func getAllDistributors() : async [Distributor] {
     distributors.values().toArray();
   };
 
-  // Purchase CRUD - Users can add and view (stock updates are sensitive)
-  public shared ({ caller }) func addPurchase(purchase : Purchase) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add purchases");
-    };
+  // Purchase CRUD - open to all users
+  public shared func addPurchase(purchase : Purchase) : async Nat {
     // Update medicine stock
     for (item in purchase.items.vals()) {
       let totalQty = item.qty + item.freeQty;
@@ -499,27 +358,18 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getPurchase(id : Nat) : async Purchase {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view purchases");
-    };
+  public query func getPurchase(id : Nat) : async Purchase {
     switch (purchases.get(id)) {
       case (null) { Runtime.trap("Purchase not found") };
       case (?purchase) { purchase };
     };
   };
 
-  public query ({ caller }) func getAllPurchases() : async [Purchase] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view purchases");
-    };
+  public query func getAllPurchases() : async [Purchase] {
     purchases.values().toArray();
   };
 
-  public query ({ caller }) func getPurchasesByDistributor(distributorId : Nat) : async [Purchase] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view purchases");
-    };
+  public query func getPurchasesByDistributor(distributorId : Nat) : async [Purchase] {
     let iter = purchases.values();
     let filtered = iter.filter(
       func(p) { p.distributorId == distributorId }
@@ -527,7 +377,7 @@ actor {
     filtered.toArray();
   };
 
-  public shared ({ caller }) func initialize() : async () {
+  public shared func initialize() : async () {
     initializeSampleData();
   };
 
