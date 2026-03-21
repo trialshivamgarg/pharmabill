@@ -13,13 +13,16 @@ import Customers from "./pages/Customers";
 import Dashboard from "./pages/Dashboard";
 import Distributors from "./pages/Distributors";
 import Inventory from "./pages/Inventory";
+import MedicineHistory from "./pages/MedicineHistory";
 import NewBill from "./pages/NewBill";
 import PharmacyProfile from "./pages/PharmacyProfile";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import PurchaseHistory from "./pages/PurchaseHistory";
 import PurchaseReturn from "./pages/PurchaseReturn";
+import PurchaseReturnHistory from "./pages/PurchaseReturnHistory";
 import Reports from "./pages/Reports";
 import SalesReturn from "./pages/SalesReturn";
+import SalesReturnHistory from "./pages/SalesReturnHistory";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -54,6 +57,11 @@ const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/history",
   component: BillHistory,
+});
+const medicineHistoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/medicine-history",
+  component: MedicineHistory,
 });
 const reportsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -95,6 +103,16 @@ const backupRestoreRoute = createRoute({
   path: "/backup-restore",
   component: BackupRestore,
 });
+const salesReturnHistoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sales-return-history",
+  component: SalesReturnHistory,
+});
+const purchaseReturnHistoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/purchase-return-history",
+  component: PurchaseReturnHistory,
+});
 
 const routeTree = rootRoute.addChildren([
   dashboardRoute,
@@ -102,9 +120,12 @@ const routeTree = rootRoute.addChildren([
   customersRoute,
   newBillRoute,
   historyRoute,
+  medicineHistoryRoute,
   reportsRoute,
   salesReturnRoute,
+  salesReturnHistoryRoute,
   purchaseReturnRoute,
+  purchaseReturnHistoryRoute,
   distributorsRoute,
   purchaseEntryRoute,
   purchaseHistoryRoute,

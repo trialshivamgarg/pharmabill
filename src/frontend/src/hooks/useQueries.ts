@@ -9,7 +9,14 @@ import type {
 } from "../backend.d";
 import { PaymentMode, Unit } from "../backend.d";
 import { useActor } from "./useActor";
-import { addToPendingQueue, getCache, setCache } from "./useOfflineStore";
+import {
+  addBillDeletion,
+  addToPendingQueue,
+  applyBillOverrides,
+  getCache,
+  setBillUpdate,
+  setCache,
+} from "./useOfflineStore";
 import { useOnlineStatus } from "./useOnlineStatus";
 
 export { PaymentMode, Unit };
@@ -27,7 +34,6 @@ export function useGetDashboardStats() {
     queryFn: async () => {
       if (!isOnline) {
         const cached = getCache<DashboardStats>("bills");
-        // Build a minimal stats object from cached bills if available
         return {
           totalBills: BigInt(Array.isArray(cached) ? cached.length : 0),
           totalRevenue: 0,
@@ -101,16 +107,29 @@ export function useGetBills() {
   return useQuery<Bill[]>({
     queryKey: ["bills"],
     queryFn: async () => {
+      const dedup = (bills: Bill[]) =>
+        bills.filter(
+          (bill, idx, arr) =>
+            arr.findIndex((b) => String(b.id) === String(bill.id)) === idx,
+        );
       if (!isOnline) {
-        return getCache<Bill[]>("bills") ?? [];
+        const cached = getCache<Bill[]>("bills") ?? [];
+        return dedup(applyBillOverrides(cached));
       }
       try {
-        if (!actor) return getCache<Bill[]>("bills") ?? [];
+        if (!actor) {
+          const cached = getCache<Bill[]>("bills") ?? [];
+          return dedup(applyBillOverrides(cached));
+        }
         const result = await actor.getAllBills();
-        setCache("bills", result);
-        return result;
+        // Apply local overrides before caching so edits/deletes persist
+        const withOverrides = applyBillOverrides(result);
+        const uniqueBills = dedup(withOverrides);
+        setCache("bills", uniqueBills);
+        return uniqueBills;
       } catch {
-        return getCache<Bill[]>("bills") ?? [];
+        const cached = getCache<Bill[]>("bills") ?? [];
+        return dedup(applyBillOverrides(cached));
       }
     },
     enabled: !isOnline || (!!actor && !isFetching),
@@ -323,19 +342,74 @@ export function useCreateBill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (bill: Bill) => {
-      if (!isOnline) {
+      // Always save to localStorage immediately so the bill is never lost
+      const cached = getCache<Bill[]>("bills") ?? [];
+      setCache("bills", [...cached, bill]);
+
+      if (!isOnline || !actor) {
         addToPendingQueue({
           id: generateId(),
           type: "createBill",
           payload: bill,
           timestamp: Date.now(),
         });
-        const cached = getCache<Bill[]>("bills") ?? [];
-        setCache("bills", [...cached, bill]);
         return;
       }
-      if (!actor) throw new Error("No actor");
-      return actor.createBill(bill);
+
+      try {
+        await actor.createBill(bill);
+      } catch {
+        addToPendingQueue({
+          id: generateId(),
+          type: "createBill",
+          payload: bill,
+          timestamp: Date.now(),
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+      qc.invalidateQueries({ queryKey: ["medicines"] });
+    },
+  });
+}
+
+// ─── Update Bill ─────────────────────────────────────────────────────────────
+export function useUpdateBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (bill: Bill) => {
+      // Persist the update as a local override so it survives server re-fetches
+      setBillUpdate(String(bill.id), bill);
+      // Also update the bills cache directly
+      const cached = getCache<Bill[]>("bills") ?? [];
+      const updated = cached.map((b) =>
+        String(b.id) === String(bill.id) ? bill : b,
+      );
+      setCache("bills", updated);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+      qc.invalidateQueries({ queryKey: ["medicines"] });
+    },
+  });
+}
+
+// ─── Delete Bill ─────────────────────────────────────────────────────────────
+export function useDeleteBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      // Persist the deletion as a local override
+      addBillDeletion(String(id));
+      // Also remove from cache immediately
+      const cached = getCache<Bill[]>("bills") ?? [];
+      setCache(
+        "bills",
+        cached.filter((b) => String(b.id) !== String(id)),
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });

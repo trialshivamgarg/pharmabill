@@ -6,6 +6,8 @@ export type PendingMutationType =
   | "updateCustomer"
   | "deleteCustomer"
   | "createBill"
+  | "updateBill"
+  | "deleteBill"
   | "addDistributor"
   | "updateDistributor"
   | "deleteDistributor"
@@ -82,4 +84,73 @@ export function clearPendingQueue(): void {
   } catch {
     // ignore
   }
+}
+
+// ─── Bill-local-overrides helpers ───────────────────────────────────────────
+// These let us track which bills were deleted or updated locally so we can
+// re-apply the overrides after a server fetch without losing changes.
+
+const BILL_DELETIONS_KEY = "pharma_bill_deletions";
+const BILL_UPDATES_KEY = "pharma_bill_updates";
+
+export function getBillDeletions(): string[] {
+  try {
+    const raw = localStorage.getItem(BILL_DELETIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addBillDeletion(id: string): void {
+  try {
+    const ids = getBillDeletions();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      localStorage.setItem(BILL_DELETIONS_KEY, JSON.stringify(ids));
+    }
+    // Remove from updates if it was previously updated
+    const updates = getBillUpdates();
+    delete updates[id];
+    localStorage.setItem(BILL_UPDATES_KEY, JSON.stringify(updates));
+  } catch {
+    // ignore
+  }
+}
+
+export function getBillUpdates(): Record<string, any> {
+  try {
+    const raw = localStorage.getItem(BILL_UPDATES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setBillUpdate(id: string, bill: any): void {
+  try {
+    const updates = getBillUpdates();
+    updates[id] = bill;
+    localStorage.setItem(BILL_UPDATES_KEY, JSON.stringify(updates));
+    // Remove from deletions if previously deleted
+    const deletions = getBillDeletions().filter((d) => d !== id);
+    localStorage.setItem(BILL_DELETIONS_KEY, JSON.stringify(deletions));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Apply local overrides (deletions + updates) to a server-fetched bills array.
+ * Call this after every bills fetch to ensure local edit/delete changes persist.
+ */
+export function applyBillOverrides<T extends { id: any }>(bills: T[]): T[] {
+  const deletions = getBillDeletions();
+  const updates = getBillUpdates();
+  return bills
+    .filter((b) => !deletions.includes(String(b.id)))
+    .map((b) => {
+      const override = updates[String(b.id)];
+      return override ? { ...b, ...override } : b;
+    });
 }

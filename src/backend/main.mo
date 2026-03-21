@@ -134,19 +134,27 @@ actor {
     purchaseDate : Time.Time;
   };
 
+  // In-memory working Maps
   let medicines = Map.empty<Nat, Medicine>();
   let customers = Map.empty<Nat, Customer>();
   let bills = Map.empty<Nat, Bill>();
   let distributors = Map.empty<Nat, Distributor>();
   let purchases = Map.empty<Nat, Purchase>();
 
-  var nextMedicineId = 1;
-  var nextCustomerId = 1;
-  var nextBillId = 1;
-  var nextBillNumber = 1;
-  var nextDistributorId = 1;
-  var nextPurchaseId = 1;
-  var initialized = false;
+  // Stable storage — survives canister upgrades
+  stable var stableMedicines : [(Nat, Medicine)] = [];
+  stable var stableCustomers : [(Nat, Customer)] = [];
+  stable var stableBills : [(Nat, Bill)] = [];
+  stable var stableDistributors : [(Nat, Distributor)] = [];
+  stable var stablePurchases : [(Nat, Purchase)] = [];
+
+  stable var nextMedicineId : Nat = 1;
+  stable var nextCustomerId : Nat = 1;
+  stable var nextBillId : Nat = 1;
+  stable var nextBillNumber : Nat = 1;
+  stable var nextDistributorId : Nat = 1;
+  stable var nextPurchaseId : Nat = 1;
+  stable var initialized : Bool = false;
 
   private func initializeSampleData() : () {
     if (initialized) { return };
@@ -381,8 +389,31 @@ actor {
     initializeSampleData();
   };
 
-  system func preupgrade() {};
+  // Serialize all Maps to stable arrays before upgrade
+  system func preupgrade() {
+    stableMedicines := medicines.toArray();
+    stableCustomers := customers.toArray();
+    stableBills := bills.toArray();
+    stableDistributors := distributors.toArray();
+    stablePurchases := purchases.toArray();
+  };
+
+  // Restore Maps from stable arrays after upgrade
   system func postupgrade() {
-    initializeSampleData();
+    for ((k, v) in stableMedicines.vals()) { medicines.add(k, v) };
+    for ((k, v) in stableCustomers.vals()) { customers.add(k, v) };
+    for ((k, v) in stableBills.vals()) { bills.add(k, v) };
+    for ((k, v) in stableDistributors.vals()) { distributors.add(k, v) };
+    for ((k, v) in stablePurchases.vals()) { purchases.add(k, v) };
+    // Clear stable arrays to free memory
+    stableMedicines := [];
+    stableCustomers := [];
+    stableBills := [];
+    stableDistributors := [];
+    stablePurchases := [];
+    // Only seed sample data on very first deploy
+    if (not initialized) {
+      initializeSampleData();
+    };
   };
 };

@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Bell,
+  BookOpen,
   ChevronRight,
   ClipboardList,
   Database,
@@ -34,8 +35,11 @@ const NAV_LINKS = [
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/new-bill", label: "New Bill", icon: FileText },
   { to: "/history", label: "Bill History", icon: History },
+  { to: "/medicine-history", label: "Med History", icon: BookOpen },
   { to: "/sales-return", label: "Sales Return", icon: RotateCcw },
+  { to: "/sales-return-history", label: "SR History", icon: History },
   { to: "/purchase-return", label: "Purchase Return", icon: ArrowLeftRight },
+  { to: "/purchase-return-history", label: "PR History", icon: History },
   { to: "/distributors", label: "Distributors", icon: Truck },
   { to: "/purchase-entry", label: "Purchase Entry", icon: ShoppingCart },
   { to: "/purchase-history", label: "Purchase History", icon: ClipboardList },
@@ -52,17 +56,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isOnline } = useOnlineStatus();
   const prevOnlineRef = useRef(isOnline);
 
-  // Activate sync-on-reconnect
   useSyncPending();
 
-  // Show toast when going offline
   useEffect(() => {
     if (prevOnlineRef.current && !isOnline) {
       toast.warning(
         "You are offline. Bills and changes will be saved and synced when back online.",
-        {
-          duration: 5000,
-        },
+        { duration: 5000 },
       );
     }
     prevOnlineRef.current = isOnline;
@@ -110,7 +110,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Online/Offline indicator */}
           <div
             className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
               isOnline
@@ -134,7 +133,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </>
             )}
           </div>
-
           <button
             type="button"
             className="text-white/70 hover:text-white p-1.5 rounded hover:bg-white/10 transition-colors"
@@ -190,7 +188,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Offline banner in sidebar */}
           {!isOnline && (
             <div className="mx-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
               <div className="flex items-center gap-1.5 text-amber-700">

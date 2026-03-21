@@ -1,5 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -22,8 +29,11 @@ import {
   ShoppingCart,
   Upload,
 } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { Medicine } from "../hooks/useQueries";
 import {
   useGetBills,
+  useGetCustomers,
   useGetDashboardStats,
   useGetMedicines,
 } from "../hooks/useQueries";
@@ -32,7 +42,7 @@ function fmt(n: bigint | undefined) {
   return n !== undefined ? Number(n).toLocaleString("en-IN") : "0";
 }
 function fmtCurrency(n: bigint | undefined) {
-  return `₹${fmt(n)}`;
+  return `\u20b9${fmt(n)}`;
 }
 function fmtDate(ns: bigint) {
   return new Date(Number(ns) / 1_000_000).toLocaleDateString("en-IN");
@@ -138,11 +148,135 @@ const QUICK_ACTIONS = [
   },
 ];
 
+function MedicineBillingHistoryDialog({
+  medicine,
+  onClose,
+}: {
+  medicine: Medicine;
+  onClose: () => void;
+}) {
+  const { data: bills = [] } = useGetBills();
+  const { data: customers = [] } = useGetCustomers();
+
+  const custMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of customers) m[String(c.id)] = c.name;
+    return m;
+  }, [customers]);
+
+  const relevantBills = useMemo(() => {
+    return bills
+      .filter((b) =>
+        b.items.some((item) => String(item.medicineId) === String(medicine.id)),
+      )
+      .sort((a, b) => Number(b.billDate - a.billDate));
+  }, [bills, medicine.id]);
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-2xl"
+        data-ocid="dashboard.medicine_history.dialog"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            {medicine.name} — Billing History
+          </DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh]">
+          {relevantBills.length === 0 ? (
+            <div
+              className="text-center text-muted-foreground text-sm py-10"
+              data-ocid="dashboard.medicine_history.empty_state"
+            >
+              This medicine has not been billed yet
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-xs font-semibold text-muted-foreground">
+                    Invoice No
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground">
+                    Date
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground">
+                    Patient
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">
+                    Qty
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">
+                    Rate (MRP)
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {relevantBills.map((bill, idx) => {
+                  const matchItem = bill.items.find(
+                    (item) => String(item.medicineId) === String(medicine.id),
+                  );
+                  const isLatest = idx === 0;
+                  return (
+                    <TableRow
+                      key={String(bill.id)}
+                      className={`border-border ${isLatest ? "bg-primary/5 font-medium" : ""}`}
+                      data-ocid={`dashboard.medicine_history.item.${idx + 1}`}
+                    >
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={isLatest ? "default" : "outline"}
+                            className="text-[10px]"
+                          >
+                            {billNo(bill.billNumber)}
+                          </Badge>
+                          {isLatest && (
+                            <span className="text-[10px] text-primary font-semibold">
+                              Latest
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {fmtDate(bill.billDate)}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {custMap[String(bill.customerId)] ?? "Walk-in"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {matchItem ? String(matchItem.quantity) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {matchItem
+                          ? `\u20b9${String(matchItem.unitPrice)}`
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: bills, isLoading: billsLoading } = useGetBills();
   const { data: medicines, isLoading: medsLoading } = useGetMedicines();
   const navigate = useNavigate();
+  const [selectedMed, setSelectedMed] = useState<Medicine | null>(null);
 
   const recentBills = [...(bills ?? [])]
     .sort((a, b) => Number(b.billDate - a.billDate))
@@ -312,6 +446,9 @@ export default function Dashboard() {
                 </Badge>
               )}
             </CardTitle>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Click a medicine to see its billing history
+            </p>
           </CardHeader>
           <CardContent className="p-0">
             {medsLoading ? (
@@ -353,8 +490,10 @@ export default function Dashboard() {
                     lowStockMeds.map((med, idx) => (
                       <TableRow
                         key={String(med.id)}
-                        className="border-border"
+                        className="border-border cursor-pointer hover:bg-accent/50 transition-colors"
+                        onClick={() => setSelectedMed(med)}
                         data-ocid={`dashboard.low_stock.item.${idx + 1}`}
+                        title="Click to view billing history"
                       >
                         <TableCell className="pl-5 font-medium text-[13px]">
                           {med.name}
@@ -397,6 +536,13 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {selectedMed && (
+        <MedicineBillingHistoryDialog
+          medicine={selectedMed}
+          onClose={() => setSelectedMed(null)}
+        />
+      )}
     </div>
   );
 }
