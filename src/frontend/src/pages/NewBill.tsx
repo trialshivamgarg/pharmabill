@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   PackagePlus,
@@ -46,6 +47,7 @@ import {
   type Medicine,
   PaymentMode,
   Unit,
+  getMedicinePack,
   useAddCustomer,
   useAddMedicine,
   useCreateBill,
@@ -57,6 +59,8 @@ import {
 interface BillRow {
   medicineId: bigint;
   medicineName: string;
+  pack: string;
+  hsn: string;
   batch: string;
   expiry: string;
   qty: number;
@@ -79,6 +83,8 @@ function newRow(): BillRow {
   return {
     medicineId: 0n,
     medicineName: "",
+    pack: "",
+    hsn: "",
     batch: "",
     expiry: "",
     qty: 1,
@@ -130,6 +136,7 @@ export default function NewBill() {
   const createBill = useCreateBill();
   const addCustomer = useAddCustomer();
   const addMedicine = useAddMedicine();
+  const qc = useQueryClient();
 
   const nextBillNo = useMemo(() => {
     if (!allBills.length) return 1;
@@ -281,9 +288,28 @@ export default function NewBill() {
         resolvedId = 0n;
       }
     }
+    // Fallback chain: free-text unit → localStorage → getPackStr(unit enum)
+    const UNIT_ENUMS = ["strip", "tablet", "bottle"];
+    let pack: string;
+    if (med.unit && !UNIT_ENUMS.includes(med.unit)) {
+      pack = med.unit;
+    } else {
+      const localPack = getMedicinePack(resolvedId);
+      if (localPack) {
+        pack = localPack;
+      } else if (med.unit === "strip") {
+        pack = "1*15";
+      } else if (med.unit === "bottle") {
+        pack = "1*1";
+      } else {
+        pack = "1x10";
+      }
+    }
     updateRow(key, {
       medicineId: resolvedId,
       medicineName: med.name,
+      pack,
+      hsn: med.hsnCode,
       batch: med.batchNumber,
       expiry: med.expiryDate,
       unitPrice: Number(med.sellingPrice),
@@ -335,6 +361,7 @@ export default function NewBill() {
         updateRow(newMedRowKey, {
           medicineId: createdMed.id,
           medicineName: createdMed.name,
+          hsn: createdMed.hsnCode,
           batch: createdMed.batchNumber,
           expiry: createdMed.expiryDate,
           unitPrice: Number(createdMed.sellingPrice),
@@ -414,18 +441,42 @@ export default function NewBill() {
       billDate: BigInt(Date.now() * 1_000_000),
       customerId: resolvedCustomerId,
       paymentMode: currentPayment,
-      subtotal: BigInt(Math.round(sub)),
+      // Subtotal and GST stored as ×100 integers — no rounding on sub-totals
+      subtotal: BigInt(Math.trunc(sub * 100)),
       totalDiscount: 0n,
-      totalGST: BigInt(Math.round(gst)),
+      totalGST: BigInt(Math.trunc(gst * 100)),
+      // Grand Total is the ONLY place where rounding is applied
       grandTotal: BigInt(Math.round(grand)),
-      items: currentRows.map((r) => ({
-        medicineId: r.medicineId,
-        quantity: BigInt(r.qty),
-        unitPrice: BigInt(r.unitPrice),
-        discountPercent: 0n,
-        gstAmount: BigInt(Math.round(calcRow(r).gstAmt)),
-      })),
+      invoiceNumber: effectiveInvoiceNo,
+      customerName: patientName.trim(),
+      customerAddress: patientPhone.trim(),
+      doctorName: doctorName.trim(),
+      doctorAddress: doctorRegNo.trim(),
+      remark: "",
+      items: currentRows.map((r) => {
+        const rowGst = calcRow(r).gstAmt;
+        // Use Math.trunc (not Math.round) for per-item values — no rounding on individual items
+        const halfGst = BigInt(Math.trunc((rowGst / 2) * 100));
+        return {
+          medicineId: r.medicineId,
+          medicineName: r.medicineName,
+          quantity: BigInt(r.qty),
+          // Store unitPrice as ×100 integer (cents) without rounding
+          unitPrice: BigInt(Math.trunc(r.unitPrice * 100)),
+          discountPercent: 0n,
+          gstAmount: BigInt(Math.trunc(rowGst * 100)),
+          hsnCode: r.hsn,
+          pack: r.pack,
+          batch: r.batch,
+          expiry: r.expiry,
+          sgst: halfGst,
+          cgst: halfGst,
+        };
+      }),
     });
+
+    // Force immediate re-fetch so BillHistory shows the new bill right away
+    await qc.invalidateQueries({ queryKey: ["bills"], refetchType: "all" });
 
     toast.success(`Bill ${effectiveInvoiceNo} saved successfully`);
     setRows([]);
@@ -760,6 +811,7 @@ export default function NewBill() {
                   id="nm-sell"
                   type="number"
                   min="0"
+                  step="0.01"
                   data-ocid="billing.new_medicine_selling_price.input"
                   className="mt-1"
                   placeholder="0.00"
@@ -775,6 +827,7 @@ export default function NewBill() {
                   id="nm-purchase"
                   type="number"
                   min="0"
+                  step="0.01"
                   data-ocid="billing.new_medicine_purchase_price.input"
                   className="mt-1"
                   placeholder="0.00"
@@ -993,13 +1046,13 @@ export default function NewBill() {
                     className="text-xs text-muted-foreground"
                     htmlFor="patient-phone"
                   >
-                    Patient Phone
+                    Patient Address
                   </Label>
                   <Input
                     id="patient-phone"
                     data-ocid="billing.patient_phone.input"
                     className="h-8 text-sm mt-0.5"
-                    placeholder="Phone number..."
+                    placeholder="Patient Address"
                     value={patientPhone}
                     onChange={(e) => setPatientPhone(e.target.value)}
                   />
@@ -1027,13 +1080,13 @@ export default function NewBill() {
                     className="text-xs text-muted-foreground"
                     htmlFor="doctor-reg-no"
                   >
-                    Doctor Reg No
+                    Doctor Address
                   </Label>
                   <Input
                     id="doctor-reg-no"
                     data-ocid="billing.doctor_reg_no.input"
                     className="h-8 text-sm mt-0.5"
-                    placeholder="e.g. MCI-12345"
+                    placeholder="Doctor Address"
                     value={doctorRegNo}
                     onChange={(e) => setDoctorRegNo(e.target.value)}
                   />
@@ -1136,6 +1189,8 @@ export default function NewBill() {
                   <TableRow className="border-border hover:bg-transparent">
                     {[
                       "Medicine",
+                      "Pack",
+                      "HSN",
                       "Batch",
                       "Expiry",
                       "Qty",
@@ -1158,7 +1213,7 @@ export default function NewBill() {
                   {rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={9}
+                        colSpan={11}
                         className="text-center text-muted-foreground text-xs py-8"
                         data-ocid="billing.items.empty_state"
                       >
@@ -1204,6 +1259,27 @@ export default function NewBill() {
                           </TableCell>
                           <TableCell>
                             <Input
+                              className="h-7 text-xs w-20"
+                              placeholder="Pack"
+                              value={row.pack}
+                              onChange={(e) =>
+                                updateRow(row.rowKey, { pack: e.target.value })
+                              }
+                              data-ocid="billing.pack.input"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              className="h-7 text-xs w-20"
+                              placeholder="HSN"
+                              value={row.hsn}
+                              onChange={(e) =>
+                                updateRow(row.rowKey, { hsn: e.target.value })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
                               className="h-7 text-xs w-24"
                               placeholder="Batch no."
                               value={row.batch}
@@ -1241,6 +1317,7 @@ export default function NewBill() {
                             <Input
                               type="number"
                               min="0"
+                              step="0.01"
                               className="h-7 text-xs w-20"
                               value={row.unitPrice}
                               onChange={(e) =>
@@ -1490,6 +1567,11 @@ export default function NewBill() {
                     {m.name}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
+                    {getMedicinePack(m.id) && (
+                      <span className="text-primary text-xs font-medium">
+                        {getMedicinePack(m.id)}
+                      </span>
+                    )}
                     <span className="text-muted-foreground text-xs">
                       {m.unit}
                     </span>

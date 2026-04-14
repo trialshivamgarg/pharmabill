@@ -1,7 +1,23 @@
 import { fileURLToPath, URL } from "url";
+import { writeFileSync } from "fs";
+import { resolve, dirname } from "path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import environment from "vite-plugin-environment";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Vite plugin: writes public/build-version.json with a unique timestamp on every build
+function buildVersionPlugin() {
+  return {
+    name: "build-version",
+    buildStart() {
+      const version = Date.now();
+      const outPath = resolve(__dirname, "public/build-version.json");
+      writeFileSync(outPath, JSON.stringify({ v: version }) + "\n", "utf-8");
+    },
+  };
+}
 
 const ii_url =
   process.env.DFX_NETWORK === "local"
@@ -38,6 +54,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    buildVersionPlugin(),
     environment("all", { prefix: "CANISTER_" }),
     environment("all", { prefix: "DFX_" }),
     environment(["II_URL"]),
@@ -55,6 +72,6 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./src", import.meta.url)),
       },
     ],
-    dedupe: ["@dfinity/agent"],
+    dedupe: ["@dfinity/agent"]
   },
 });

@@ -1,0 +1,233 @@
+// Version: 1.0.0
+type BillItem__247861991 =
+  {
+    batch : Text;
+    cgst : Nat;
+    discountPercent : Nat;
+    expiry : Text;
+    gstAmount : Nat;
+    hsnCode : Text;
+    medicineId : Nat;
+    medicineName : Text;
+    pack : Text;
+    quantity : Nat;
+    sgst : Nat;
+    unitPrice : Nat
+  };
+type Bill__255701916 =
+  {
+    billDate : Time__900049286;
+    billNumber : Nat;
+    customerAddress : Text;
+    customerId : Nat;
+    customerName : Text;
+    doctorAddress : Text;
+    doctorName : Text;
+    grandTotal : Nat;
+    id : Nat;
+    invoiceNumber : Text;
+    items : [BillItem__247861991];
+    paymentMode : PaymentMode__936494874;
+    remark : Text;
+    subtotal : Nat;
+    totalDiscount : Nat;
+    totalGST : Nat
+  };
+type Customer__263943254 =
+  {address : Text; email : Text; id : Nat; name : Text; phone : Text};
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Distributor__962834539 =
+  {
+    address : Text;
+    contactPerson : Text;
+    drugLicenseNumber : Text;
+    email : Text;
+    gstNumber : Text;
+    id : Nat;
+    name : Text;
+    phone : Text
+  };
+type Int__270357528 = Int__616954475;
+type Int__616954475 = Int;
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type Medicine__869616789 =
+  {
+    batchNumber : Text;
+    currentStock : Nat;
+    expiryDate : Text;
+    genericName : Text;
+    gstPercent : Nat;
+    hsnCode : Text;
+    id : Nat;
+    manufacturer : Text;
+    name : Text;
+    purchasePrice : Nat;
+    rackLocation : Text;
+    reorderLevel : Nat;
+    sellingPrice : Nat;
+    unit : Unit__360749363
+  };
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type PaymentMode__936494874 = {#UPI; #card; #cash};
+type PurchaseItem__802806090 =
+  {
+    amount : Nat;
+    batch : Text;
+    expiry : Text;
+    freeQty : Nat;
+    gstPercent : Nat;
+    hsnCode : Text;
+    medicineId : Nat;
+    medicineName : Text;
+    mrp : Nat;
+    pack : Text;
+    purchaseRate : Nat;
+    qty : Nat
+  };
+type PurchaseReturnItem__809936969 =
+  {
+    amount : Nat;
+    batch : Text;
+    cgst : Nat;
+    expiry : Text;
+    gstAmount : Nat;
+    hsnCode : Text;
+    medicineId : Nat;
+    medicineName : Text;
+    pack : Text;
+    quantity : Nat;
+    sgst : Nat;
+    unitPrice : Nat
+  };
+type PurchaseReturn__873079249 =
+  {
+    distributorAddress : Text;
+    distributorDlNo : Text;
+    distributorGst : Text;
+    distributorId : Nat;
+    distributorName : Text;
+    grandTotal : Nat;
+    id : Nat;
+    items : [PurchaseReturnItem__809936969];
+    remark : Text;
+    returnDate : Time__900049286;
+    returnNumber : Nat;
+    subtotal : Nat;
+    totalGST : Nat
+  };
+type Purchase__439230863 =
+  {
+    distributorId : Nat;
+    distributorName : Text;
+    grandTotal : Nat;
+    id : Nat;
+    invoiceDate : Text;
+    invoiceNumber : Text;
+    items : [PurchaseItem__802806090];
+    purchaseDate : Time__900049286;
+    subtotal : Nat;
+    totalGST : Nat
+  };
+type SalesReturnItem__490156429 =
+  {
+    amount : Nat;
+    batch : Text;
+    cgst : Nat;
+    expiry : Text;
+    gstAmount : Nat;
+    hsnCode : Text;
+    medicineId : Nat;
+    medicineName : Text;
+    pack : Text;
+    quantity : Nat;
+    sgst : Nat;
+    unitPrice : Nat
+  };
+type SalesReturn__277323304 =
+  {
+    customerAddress : Text;
+    customerId : Nat;
+    customerName : Text;
+    doctorAddress : Text;
+    doctorName : Text;
+    grandTotal : Nat;
+    id : Nat;
+    items : [SalesReturnItem__490156429];
+    remark : Text;
+    returnDate : Time__900049286;
+    returnNumber : Nat;
+    subtotal : Nat;
+    totalGST : Nat
+  };
+type Time__796480547 = Int__270357528;
+type Time__900049286 = Time__796480547;
+type Unit__360749363 = {#bottle; #strip; #tablet};
+type UserProfile__491224006 = {name : Text; role : Text};
+actor {
+  stable bills :
+    {
+      var root : Node__46230540<Nat, Bill__255701916>;
+      var size : Nat__490723111
+    };
+  stable customers :
+    {
+      var root : Node__46230540<Nat, Customer__263943254>;
+      var size : Nat__490723111
+    };
+  stable distributors :
+    {
+      var root : Node__46230540<Nat, Distributor__962834539>;
+      var size : Nat__490723111
+    };
+  stable var initialized : Bool;
+  stable medicines :
+    {
+      var root : Node__46230540<Nat, Medicine__869616789>;
+      var size : Nat__490723111
+    };
+  stable var nextBillId : Nat;
+  stable var nextBillNumber : Nat;
+  stable var nextCustomerId : Nat;
+  stable var nextDistributorId : Nat;
+  stable var nextMedicineId : Nat;
+  stable var nextPurchaseId : Nat;
+  stable var nextPurchaseReturnId : Nat;
+  stable var nextPurchaseReturnNumber : Nat;
+  stable var nextSalesReturnId : Nat;
+  stable var nextSalesReturnNumber : Nat;
+  stable var pharmacyProfile :
+    {
+      address : Text;
+      drugLicenseNumber : Text;
+      email : Text;
+      gstNumber : Text;
+      name : Text;
+      phone : Text
+    };
+  stable purchaseReturns :
+    {
+      var root : Node__46230540<Nat, PurchaseReturn__873079249>;
+      var size : Nat__490723111
+    };
+  stable purchases :
+    {
+      var root : Node__46230540<Nat, Purchase__439230863>;
+      var size : Nat__490723111
+    };
+  stable salesReturns :
+    {
+      var root : Node__46230540<Nat, SalesReturn__277323304>;
+      var size : Nat__490723111
+    };
+  stable userProfiles :
+    {
+      var root : Node__46230540<Principal, UserProfile__491224006>;
+      var size : Nat__490723111
+    }
+};

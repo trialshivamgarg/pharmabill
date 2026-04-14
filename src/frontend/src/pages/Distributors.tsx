@@ -31,7 +31,7 @@ import {
 import { Loader2, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Distributor } from "../backend.d";
+import type { Distributor } from "../hooks/useQueries";
 import {
   useAddDistributor,
   useDeleteDistributor,

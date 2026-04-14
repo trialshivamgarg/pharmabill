@@ -467,6 +467,7 @@ export default function PurchaseReturn() {
                       <Input
                         type="number"
                         min="0"
+                        step="0.01"
                         className="h-7 text-xs w-20"
                         value={row.purchasePrice}
                         onChange={(e) =>

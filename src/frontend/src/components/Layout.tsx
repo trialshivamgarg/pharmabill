@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useInternetIdentity } from "@caffeineai/core-infrastructure";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
@@ -25,7 +26,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useSyncPending } from "../hooks/useSyncPending";
 

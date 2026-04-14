@@ -1,0 +1,248 @@
+type UserProfile = 
+ record {
+   name: text;
+   role: text;
+ };
+type Unit = 
+ variant {
+   bottle;
+   strip;
+   tablet;
+ };
+type Time = int;
+type SalesReturnItem = 
+ record {
+   amount: nat;
+   batch: text;
+   cgst: nat;
+   expiry: text;
+   gstAmount: nat;
+   hsnCode: text;
+   medicineId: nat;
+   medicineName: text;
+   pack: text;
+   quantity: nat;
+   sgst: nat;
+   unitPrice: nat;
+ };
+type SalesReturn = 
+ record {
+   customerAddress: text;
+   customerId: nat;
+   customerName: text;
+   doctorAddress: text;
+   doctorName: text;
+   grandTotal: nat;
+   id: nat;
+   items: vec SalesReturnItem;
+   remark: text;
+   returnDate: Time;
+   returnNumber: nat;
+   subtotal: nat;
+   totalGST: nat;
+ };
+type PurchaseReturnItem = 
+ record {
+   amount: nat;
+   batch: text;
+   cgst: nat;
+   expiry: text;
+   gstAmount: nat;
+   hsnCode: text;
+   medicineId: nat;
+   medicineName: text;
+   pack: text;
+   quantity: nat;
+   sgst: nat;
+   unitPrice: nat;
+ };
+type PurchaseReturn = 
+ record {
+   distributorAddress: text;
+   distributorDlNo: text;
+   distributorGst: text;
+   distributorId: nat;
+   distributorName: text;
+   grandTotal: nat;
+   id: nat;
+   items: vec PurchaseReturnItem;
+   remark: text;
+   returnDate: Time;
+   returnNumber: nat;
+   subtotal: nat;
+   totalGST: nat;
+ };
+type PurchaseItem = 
+ record {
+   amount: nat;
+   batch: text;
+   expiry: text;
+   freeQty: nat;
+   gstPercent: nat;
+   hsnCode: text;
+   medicineId: nat;
+   medicineName: text;
+   mrp: nat;
+   pack: text;
+   purchaseRate: nat;
+   qty: nat;
+ };
+type Purchase = 
+ record {
+   distributorId: nat;
+   distributorName: text;
+   grandTotal: nat;
+   id: nat;
+   invoiceDate: text;
+   invoiceNumber: text;
+   items: vec PurchaseItem;
+   purchaseDate: Time;
+   subtotal: nat;
+   totalGST: nat;
+ };
+type PharmacyProfile = 
+ record {
+   address: text;
+   drugLicenseNumber: text;
+   email: text;
+   gstNumber: text;
+   name: text;
+   phone: text;
+ };
+type PaymentMode = 
+ variant {
+   UPI;
+   card;
+   cash;
+ };
+type Medicine = 
+ record {
+   batchNumber: text;
+   currentStock: nat;
+   expiryDate: text;
+   genericName: text;
+   gstPercent: nat;
+   hsnCode: text;
+   id: nat;
+   manufacturer: text;
+   name: text;
+   purchasePrice: nat;
+   rackLocation: text;
+   reorderLevel: nat;
+   sellingPrice: nat;
+   unit: Unit;
+ };
+type Distributor = 
+ record {
+   address: text;
+   contactPerson: text;
+   drugLicenseNumber: text;
+   email: text;
+   gstNumber: text;
+   id: nat;
+   name: text;
+   phone: text;
+ };
+type DashboardStats = 
+ record {
+   lowStockMedicinesCount: nat;
+   todayBillCount: nat;
+   todayTotalSales: nat;
+   totalMedicinesInStock: nat;
+ };
+type Customer = 
+ record {
+   address: text;
+   email: text;
+   id: nat;
+   name: text;
+   phone: text;
+ };
+type BillItem = 
+ record {
+   batch: text;
+   cgst: nat;
+   discountPercent: nat;
+   expiry: text;
+   gstAmount: nat;
+   hsnCode: text;
+   medicineId: nat;
+   medicineName: text;
+   pack: text;
+   quantity: nat;
+   sgst: nat;
+   unitPrice: nat;
+ };
+type Bill = 
+ record {
+   billDate: Time;
+   billNumber: nat;
+   customerAddress: text;
+   customerId: nat;
+   customerName: text;
+   doctorAddress: text;
+   doctorName: text;
+   grandTotal: nat;
+   id: nat;
+   invoiceNumber: text;
+   items: vec BillItem;
+   paymentMode: PaymentMode;
+   remark: text;
+   subtotal: nat;
+   totalDiscount: nat;
+   totalGST: nat;
+ };
+service : {
+  addCustomer: (cust: Customer) -> (nat);
+  addDistributor: (dist: Distributor) -> (nat);
+  addMedicine: (med: Medicine) -> (nat);
+  addPurchase: (purchase: Purchase) -> (nat);
+  createBill: (bill: Bill) -> (nat);
+  createPurchaseReturn: (ret: PurchaseReturn) -> (nat);
+  createSalesReturn: (ret: SalesReturn) -> (nat);
+  deleteBill: (id: nat) -> ();
+  deleteCustomer: (id: nat) -> ();
+  deleteDistributor: (id: nat) -> ();
+  deleteMedicine: (id: nat) -> ();
+  deletePurchaseReturn: (id: nat) -> ();
+  deleteSalesReturn: (id: nat) -> ();
+  getAllBills: () -> (vec Bill) query;
+  getAllCustomers: () -> (vec Customer) query;
+  getAllDistributors: () -> (vec Distributor) query;
+  getAllMedicines: () -> (vec Medicine) query;
+  getAllPurchaseReturns: () -> (vec PurchaseReturn) query;
+  getAllPurchases: () -> (vec Purchase) query;
+  getAllSalesReturns: () -> (vec SalesReturn) query;
+  getBill: (id: nat) -> (Bill) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCustomer: (id: nat) -> (Customer) query;
+  getDashboardStats: () -> (DashboardStats) query;
+  getDataCounts: () ->
+   (record {
+      bills: nat;
+      customers: nat;
+      distributors: nat;
+      medicines: nat;
+      purchaseReturns: nat;
+      purchases: nat;
+      salesReturns: nat;
+    }) query;
+  getDistributor: (id: nat) -> (Distributor) query;
+  getMedicine: (id: nat) -> (Medicine) query;
+  getPharmacyProfile: () -> (PharmacyProfile) query;
+  getPurchase: (id: nat) -> (Purchase) query;
+  getPurchaseReturn: (id: nat) -> (PurchaseReturn) query;
+  getPurchasesByDistributor: (distributorId: nat) -> (vec Purchase) query;
+  getSalesReturn: (id: nat) -> (SalesReturn) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  initialize: () -> ();
+  reinitializeIfEmpty: () -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  updateBill: (bill: Bill) -> ();
+  updateCustomer: (cust: Customer) -> ();
+  updateDistributor: (dist: Distributor) -> ();
+  updateMedicine: (med: Medicine) -> ();
+  updatePharmacyProfile: (profile: PharmacyProfile) -> ();
+  updatePurchaseReturn: (ret: PurchaseReturn) -> ();
+  updateSalesReturn: (ret: SalesReturn) -> ();
+}

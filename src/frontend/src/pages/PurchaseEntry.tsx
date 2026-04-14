@@ -1,12 +1,15 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -22,10 +25,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Plus, Save, ShoppingCart, Trash2 } from "lucide-react";
+import {
+  Download,
+  FileUp,
+  Loader2,
+  Plus,
+  Save,
+  ShoppingCart,
+  Trash2,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { PurchaseItem } from "../backend.d";
+import * as XLSX from "xlsx";
+import type { PurchaseItem } from "../hooks/useQueries";
 import {
   Unit,
   useAddDistributor,
@@ -91,6 +103,99 @@ interface NewDistributorForm {
   address: string;
 }
 
+interface ImportRow {
+  medicineName: string;
+  pack: string;
+  batch: string;
+  expiry: string;
+  hsn: string;
+  qty: string;
+  freeQty: string;
+  purchaseRate: string;
+  mrp: string;
+  gstPercent: string;
+  status: "matched" | "new";
+  matchedId?: bigint;
+}
+
+const TEMPLATE_COLUMNS = [
+  "Medicine Name",
+  "Pack",
+  "Batch",
+  "Expiry",
+  "HSN",
+  "Qty",
+  "Free Qty",
+  "Purchase Rate",
+  "MRP",
+  "GST%",
+];
+
+function normalizeKey(k: string): string {
+  return k
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const KEY_MAP: Record<string, keyof ImportRow> = {
+  medicinename: "medicineName",
+  medicine: "medicineName",
+  name: "medicineName",
+  pack: "pack",
+  packsize: "pack",
+  batch: "batch",
+  batchno: "batch",
+  batchnumber: "batch",
+  expiry: "expiry",
+  expirydate: "expiry",
+  exp: "expiry",
+  hsn: "hsn",
+  hsncode: "hsn",
+  qty: "qty",
+  quantity: "qty",
+  freeqty: "freeQty",
+  free: "freeQty",
+  freequantity: "freeQty",
+  purchaserate: "purchaseRate",
+  rate: "purchaseRate",
+  purrate: "purchaseRate",
+  mrp: "mrp",
+  sellingprice: "mrp",
+  gst: "gstPercent",
+  gstpercent: "gstPercent",
+  gstpercentage: "gstPercent",
+};
+
+function parseRawRows(rawRows: Record<string, string>[]): ImportRow[] {
+  return rawRows
+    .filter((r) => Object.values(r).some((v) => v?.toString().trim()))
+    .map((r) => {
+      const mapped: Partial<ImportRow> = {
+        status: "new",
+        pack: "",
+        batch: "",
+        expiry: "",
+        hsn: "3004",
+        qty: "",
+        freeQty: "0",
+        purchaseRate: "",
+        mrp: "",
+        gstPercent: "5",
+        medicineName: "",
+      };
+      for (const [k, v] of Object.entries(r)) {
+        const nk = normalizeKey(k);
+        const field = KEY_MAP[nk];
+        if (field) {
+          (mapped as Record<string, string>)[field] =
+            v?.toString().trim() ?? "";
+        }
+      }
+      return mapped as ImportRow;
+    });
+}
+
 export default function PurchaseEntry() {
   const { data: distributors, refetch: refetchDistributors } =
     useGetDistributors();
@@ -99,6 +204,7 @@ export default function PurchaseEntry() {
   const addMedicineMutation = useAddMedicine();
   const addDistributorMutation = useAddDistributor();
   const rowCounter = useRef(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().split("T")[0];
   const [distributorId, setDistributorId] = useState("");
@@ -106,6 +212,10 @@ export default function PurchaseEntry() {
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [purchaseDate, setPurchaseDate] = useState(today);
   const [rows, setRows] = useState<RowItem[]>([makeRow(rowCounter.current)]);
+
+  // Import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
 
   // Add Medicine Dialog
   const [medDialogOpen, setMedDialogOpen] = useState(false);
@@ -206,7 +316,6 @@ export default function PurchaseEntry() {
         unit: Unit.strip,
       });
       await refetchMedicines();
-      // auto-fill the row
       if (medDialogRowId !== null) {
         setRows((prev) =>
           prev.map((row) =>
@@ -256,6 +365,149 @@ export default function PurchaseEntry() {
       toast.success("Distributor added");
       setDistDialogOpen(false);
     }
+  }
+
+  // ── Template Download ────────────────────────────────────────────────────────
+  function handleDownloadTemplate() {
+    // Excel template
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLUMNS]);
+    // Set column widths
+    ws["!cols"] = TEMPLATE_COLUMNS.map((h) => ({
+      wch: Math.max(h.length + 4, 14),
+    }));
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Template");
+    XLSX.writeFile(wb, "purchase_template.xlsx");
+
+    // JSON template
+    const sample = {
+      "Medicine Name": "Crocin 500mg",
+      Pack: "10s",
+      Batch: "B001",
+      Expiry: "2026-12",
+      HSN: "3004",
+      Qty: "100",
+      "Free Qty": "0",
+      "Purchase Rate": "45.00",
+      MRP: "60.00",
+      "GST%": "5",
+    };
+    const blob = new Blob([JSON.stringify([sample], null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "purchase_template.json";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast.success("Templates downloaded (Excel + JSON)");
+  }
+
+  // ── File Import ──────────────────────────────────────────────────────────────
+  function resolveMatchStatus(parsed: ImportRow[]): ImportRow[] {
+    const medList = medicines ?? [];
+    return parsed.map((row) => {
+      const nameNorm = row.medicineName.toLowerCase().trim();
+      const match = medList.find(
+        (m) => m.name.toLowerCase().trim() === nameNorm,
+      );
+      if (match) {
+        return { ...row, status: "matched", matchedId: match.id };
+      }
+      return { ...row, status: "new" };
+    });
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset so same file can be re-selected
+    e.target.value = "";
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "json") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target?.result as string);
+          if (!Array.isArray(data)) {
+            toast.error("JSON file must contain an array of objects");
+            return;
+          }
+          const parsed = parseRawRows(data);
+          if (parsed.length === 0) {
+            toast.error("No valid rows found in the file");
+            return;
+          }
+          setImportRows(resolveMatchStatus(parsed));
+          setImportDialogOpen(true);
+        } catch {
+          toast.error("Invalid JSON file");
+        }
+      };
+      reader.readAsText(file);
+    } else if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const wb = XLSX.read(ev.target?.result, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, {
+            defval: "",
+          });
+          const parsed = parseRawRows(json);
+          if (parsed.length === 0) {
+            toast.error("No valid rows found in the Excel file");
+            return;
+          }
+          setImportRows(resolveMatchStatus(parsed));
+          setImportDialogOpen(true);
+        } catch {
+          toast.error("Could not read Excel file");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      toast.error("Please upload a .xlsx or .json file");
+    }
+  }
+
+  function handleConfirmImport() {
+    if (importRows.length === 0) return;
+
+    const newRows: RowItem[] = importRows.map((ir) => {
+      rowCounter.current += 1;
+      return {
+        rowId: rowCounter.current,
+        medicineId: ir.status === "matched" && ir.matchedId ? ir.matchedId : 0n,
+        medicineName: ir.medicineName,
+        batch: ir.batch,
+        expiry: ir.expiry,
+        qty: ir.qty,
+        freeQty: ir.freeQty || "0",
+        purchaseRate: ir.purchaseRate,
+        mrp: ir.mrp,
+        gstPercent: ir.gstPercent || "5",
+        searchText: ir.medicineName,
+      };
+    });
+
+    // Replace all empty rows, append to filled rows
+    setRows((prev) => {
+      const filledRows = prev.filter(
+        (r) => r.medicineName.trim() !== "" || r.qty.trim() !== "",
+      );
+      return filledRows.length > 0 ? [...filledRows, ...newRows] : newRows;
+    });
+
+    toast.success(
+      `${importRows.length} item${importRows.length > 1 ? "s" : ""} imported successfully`,
+    );
+    setImportDialogOpen(false);
+    setImportRows([]);
   }
 
   const subtotalRaw = rows.reduce((sum, r) => {
@@ -335,7 +587,16 @@ export default function PurchaseEntry() {
 
   return (
     <div className="space-y-5" data-ocid="purchase_entry.page">
-      <div className="flex items-center justify-between">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.json"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShoppingCart className="h-6 w-6 text-primary" />
@@ -345,19 +606,39 @@ export default function PurchaseEntry() {
             Record purchase from distributor — stock updates automatically
           </p>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={addPurchase.isPending}
-          className="gap-2"
-          data-ocid="purchase_entry.save.button"
-        >
-          {addPurchase.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          {addPurchase.isPending ? "Saving..." : "Save Purchase"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDownloadTemplate}
+            className="gap-2"
+            data-ocid="purchase_entry.download_template.button"
+          >
+            <Download className="h-4 w-4" />
+            Download Template
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            className="gap-2"
+            data-ocid="purchase_entry.import_file.button"
+          >
+            <FileUp className="h-4 w-4" />
+            Import File
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={addPurchase.isPending}
+            className="gap-2"
+            data-ocid="purchase_entry.save.button"
+          >
+            {addPurchase.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {addPurchase.isPending ? "Saving..." : "Save Purchase"}
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-border p-5">
@@ -671,6 +952,126 @@ export default function PurchaseEntry() {
           </div>
         </div>
       </div>
+
+      {/* ── Import Confirmation Dialog ─────────────────────────────────────── */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent
+          className="max-w-5xl"
+          data-ocid="purchase_entry.import.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileUp className="h-5 w-5 text-primary" />
+              Review Import — {importRows.length} item
+              {importRows.length !== 1 ? "s" : ""}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-4 text-xs mb-2">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              Matched — will update existing stock
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+              New — will create a new medicine
+            </span>
+          </div>
+
+          <ScrollArea className="max-h-[50vh] rounded-md border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-accent/40 hover:bg-accent/40 sticky top-0">
+                  <TableHead className="text-[10px] font-semibold uppercase w-24">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase min-w-[160px]">
+                    Medicine Name
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase">
+                    Pack
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase">
+                    Batch
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase">
+                    Expiry
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase">
+                    HSN
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase w-16">
+                    Qty
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase w-24">
+                    Pur. Rate
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase w-20">
+                    MRP
+                  </TableHead>
+                  <TableHead className="text-[10px] font-semibold uppercase w-16">
+                    GST%
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importRows.map((ir, idx) => (
+                  <TableRow
+                    key={`${ir.medicineName}-${idx}`}
+                    className="text-xs"
+                    data-ocid={`purchase_entry.import.item.${idx + 1}`}
+                  >
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          ir.status === "matched"
+                            ? "border-emerald-500 text-emerald-700 bg-emerald-50"
+                            : "border-amber-500 text-amber-700 bg-amber-50"
+                        }
+                      >
+                        {ir.status === "matched" ? "✓ Matched" : "+ New"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {ir.medicineName || "—"}
+                    </TableCell>
+                    <TableCell>{ir.pack || "—"}</TableCell>
+                    <TableCell>{ir.batch || "—"}</TableCell>
+                    <TableCell>{ir.expiry || "—"}</TableCell>
+                    <TableCell>{ir.hsn || "—"}</TableCell>
+                    <TableCell>{ir.qty || "0"}</TableCell>
+                    <TableCell>₹{ir.purchaseRate || "0"}</TableCell>
+                    <TableCell>₹{ir.mrp || "0"}</TableCell>
+                    <TableCell>{ir.gstPercent || "5"}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportDialogOpen(false);
+                setImportRows([]);
+              }}
+              data-ocid="purchase_entry.import.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmImport}
+              className="gap-2"
+              data-ocid="purchase_entry.import.confirm_button"
+            >
+              <FileUp className="h-4 w-4" />
+              Confirm &amp; Import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Medicine Dialog */}
       <Dialog open={medDialogOpen} onOpenChange={setMedDialogOpen}>

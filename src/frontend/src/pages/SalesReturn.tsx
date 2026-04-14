@@ -70,12 +70,6 @@ function genReturnNo(prefix: string) {
   return `${prefix}-${n}`;
 }
 
-function getPackStr(unit: string): string {
-  if (unit === "strip") return "1*15";
-  if (unit === "bottle") return "1*1";
-  return "1x10";
-}
-
 export default function SalesReturn() {
   const { data: medicines = [] } = useGetMedicines();
   const { data: customers = [] } = useGetCustomers();
@@ -118,6 +112,18 @@ export default function SalesReturn() {
     const med = medicines.find(
       (m) => m.name.toLowerCase() === medName.toLowerCase(),
     );
+    // Fallback chain: free-text unit → getPackStr(unit enum)
+    const UNIT_ENUMS = ["strip", "tablet", "bottle"];
+    let pack: string;
+    if (med?.unit && !UNIT_ENUMS.includes(med.unit)) {
+      pack = med.unit;
+    } else if (med?.unit === "strip") {
+      pack = "1*15";
+    } else if (med?.unit === "bottle") {
+      pack = "1*1";
+    } else {
+      pack = "1x10";
+    }
     updateRow(rowId, {
       medicineName: medName,
       medicineId: med?.id ?? null,
@@ -125,7 +131,7 @@ export default function SalesReturn() {
       expiry: (med as any)?.expiryDate ?? "",
       mrp: Number(med?.sellingPrice ?? 0),
       gstPercent: Number(med?.gstPercent ?? 5),
-      pack: getPackStr(med?.unit ?? "tablet"),
+      pack,
     });
     setSearchOpen(null);
     setSearchQuery("");
@@ -470,6 +476,7 @@ export default function SalesReturn() {
                         <Input
                           type="number"
                           min="0"
+                          step="0.01"
                           className="h-7 text-xs w-20"
                           value={row.mrp}
                           onChange={(e) =>

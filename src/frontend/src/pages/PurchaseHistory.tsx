@@ -23,8 +23,8 @@ function fmtDate(ns: bigint) {
   return new Date(Number(ns) / 1_000_000).toLocaleDateString("en-IN");
 }
 
-function fmtCurrency(n: bigint) {
-  return `₹${(Number(n) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+function fmtCurrency(n: bigint | undefined) {
+  return `₹${(Number(n ?? 0n) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
 
 export default function PurchaseHistory() {

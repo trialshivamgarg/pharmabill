@@ -161,6 +161,12 @@ function buildInvoiceHtml(
   const doctorName = cust?.email ?? "—";
   const doctorRegNo = cust?.address ?? "—";
 
+  // Prefer user-entered invoice number over auto-generated one
+  const displayInvoiceNo =
+    bill.invoiceNumber && bill.invoiceNumber.trim() !== ""
+      ? bill.invoiceNumber
+      : billNo(bill.billNumber);
+
   const itemRows = bill.items
     .map((item, idx) => {
       const med = medMap[String(item.medicineId)];
@@ -168,15 +174,26 @@ function buildInvoiceHtml(
       const mrp = Number(item.unitPrice);
       const gstPct = Number(med?.gstPercent ?? 5);
       const halfGst = gstPct / 2;
-      const amount = qty * mrp;
-      const pack = getPackStr(med?.unit ?? "tablet");
-      const batch = (med as any)?.batchNumber ?? "";
-      const expiry = (med as any)?.expiryDate ?? "";
+      // Use stored amount if available, otherwise calculate
+      const amount =
+        (item as { amount?: number }).amount !== undefined
+          ? Number((item as { amount?: number }).amount)
+          : qty * mrp;
+      // Prefer stored pack from bill item; fall back to unit-based calculation
+      const pack =
+        (item as { pack?: string }).pack || getPackStr(med?.unit ?? "tablet");
+      const hsn =
+        (item as { hsnCode?: string }).hsnCode ?? (med as any)?.hsnCode ?? "";
+      const batch =
+        (item as { batch?: string }).batch || (med as any)?.batchNumber || "";
+      const expiry =
+        (item as { expiry?: string }).expiry || (med as any)?.expiryDate || "";
       return `
         <tr>
           <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${idx + 1}.</td>
           <td style="padding:2px 5px;border-left:1px solid #bbb;border-right:1px solid #bbb">${med?.name ?? "Unknown"}</td>
           <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${pack}</td>
+          <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${hsn}</td>
           <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${batch}</td>
           <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${expiry}</td>
           <td style="text-align:center;padding:2px 3px;border-left:1px solid #bbb;border-right:1px solid #bbb">${qty}</td>
@@ -245,9 +262,9 @@ function buildInvoiceHtml(
       </td>
       <td style="width:50%;padding:6px 10px 6px 13%;vertical-align:top">
         <div style="font-size:11px;font-weight:bold;margin-bottom:3px"><strong>Patient Name : ${patientName}</strong></div>
-        <div style="font-size:10.5px;margin-bottom:3px">Patient PH. NO &nbsp;${patientPhone}</div>
+        <div style="font-size:10.5px;margin-bottom:3px">Patient Address : ${patientPhone}</div>
         <div style="font-size:10.5px;margin-bottom:3px">Dr Name : ${doctorName}</div>
-        <div style="font-size:10.5px">Dr Reg No. ${doctorRegNo}</div>
+        <div style="font-size:10.5px">Doctor Address : ${doctorRegNo}</div>
       </td>
     </tr>
   </table>
@@ -262,7 +279,7 @@ function buildInvoiceHtml(
         <span style="font-size:22px;font-weight:900;letter-spacing:2px;color:#000">GST INVOICE</span>
       </td>
       <td style="width:35%;padding:5px 10px;vertical-align:middle;font-size:10.5px">
-        <div style="margin-bottom:3px">BILL NO. &nbsp;: &nbsp;<strong>${billNo(bill.billNumber)}</strong></div>
+        <div style="margin-bottom:3px">BILL NO. &nbsp;: &nbsp;<strong>${displayInvoiceNo}</strong></div>
         <div>Date &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;<strong>${fmtDate(bill.billDate)}</strong></div>
       </td>
     </tr>
@@ -272,13 +289,14 @@ function buildInvoiceHtml(
     <thead>
       <tr>
         <th style="width:26px">SN</th>
-        <th style="min-width:140px;text-align:left;padding-left:5px">PRODUCT NAME</th>
+        <th style="min-width:130px;text-align:left;padding-left:5px">PRODUCT NAME</th>
         <th style="width:44px">PACK</th>
+        <th style="width:56px">HSN</th>
         <th style="width:72px">BATCH</th>
         <th style="width:46px">EXP.</th>
         <th style="width:32px">QTY</th>
-        <th style="width:60px">MRP</th>
-        <th style="width:60px">RATE</th>
+        <th style="width:56px">MRP</th>
+        <th style="width:56px">RATE</th>
         <th style="width:44px">SGST</th>
         <th style="width:44px">CGST</th>
         <th style="width:68px">Amount</th>
@@ -286,7 +304,7 @@ function buildInvoiceHtml(
     </thead>
     <tbody>
       ${itemRows}
-      ${Array.from({ length: Math.max(0, 12 - bill.items.length) }, () => `<tr>${Array(11).fill('<td style="border-left:1px solid #bbb;border-right:1px solid #bbb;height:18px"></td>').join("")}</tr>`).join("")}
+      ${Array.from({ length: Math.max(0, 12 - bill.items.length) }, () => `<tr>${Array(12).fill('<td style="border-left:1px solid #bbb;border-right:1px solid #bbb;height:18px"></td>').join("")}</tr>`).join("")}
     </tbody>
   </table>
 
@@ -419,6 +437,8 @@ interface EditRow {
   rowKey: string;
   medicineId: string; // string to handle bigint
   medicineName: string;
+  pack: string;
+  hsn: string;
   batch: string;
   expiry: string;
   qty: number;
@@ -433,6 +453,8 @@ function newEditRow(): EditRow {
     rowKey: String(rowKeyCounter),
     medicineId: "0",
     medicineName: "",
+    pack: "",
+    hsn: "",
     batch: "",
     expiry: "",
     qty: 1,
@@ -468,6 +490,7 @@ function EditBillSheet({
   const [doctorName, setDoctorName] = useState("");
   const [doctorRegNo, setDoctorRegNo] = useState("");
   const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
 
   // Medicine rows
   const [rows, setRows] = useState<EditRow[]>([]);
@@ -486,15 +509,25 @@ function EditBillSheet({
     setDoctorName(cust?.email ?? "");
     setDoctorRegNo(cust?.address ?? "");
     setInvoiceDate(fmtDate(bill.billDate));
+    setInvoiceNumber(
+      bill.invoiceNumber && bill.invoiceNumber.trim() !== ""
+        ? bill.invoiceNumber
+        : billNo(bill.billNumber),
+    );
     setRows(
       bill.items.map((item) => {
         const med = medMap[String(item.medicineId)];
         return {
           rowKey: `${String(item.medicineId)}_${Math.random()}`,
           medicineId: String(item.medicineId),
-          medicineName: med?.name ?? "Unknown",
-          batch: med?.batchNumber ?? "",
-          expiry: med?.expiryDate ?? "",
+          medicineName:
+            (item as { medicineName?: string }).medicineName ??
+            med?.name ??
+            "Unknown",
+          pack: (item as { pack?: string }).pack ?? "",
+          hsn: (item as { hsnCode?: string }).hsnCode ?? med?.hsnCode ?? "",
+          batch: (item as { batch?: string }).batch ?? med?.batchNumber ?? "",
+          expiry: (item as { expiry?: string }).expiry ?? med?.expiryDate ?? "",
           qty: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           gstPct: Number(med?.gstPercent ?? 5),
@@ -574,24 +607,56 @@ function EditBillSheet({
     setCache("customers", updatedCustomers);
 
     // ── Build updated bill ────────────────────────────────────────────────────
+    // Individual item prices/amounts are NOT rounded — exact values are preserved.
+    // Only the Grand Total has round-off applied (standard pharmacy billing practice).
     const newItems = rows
       .filter((r) => r.medicineId !== "0")
       .map((r) => {
         const amount = r.qty * r.unitPrice;
         const base = amount / (1 + r.gstPct / 100);
         const gstAmt = amount - base;
+        // Store unitPrice as ×100 integer (cents) — same convention as NewBill.tsx
+        // Use Math.trunc (not Math.round) to preserve exact entered value
+        const unitPriceStored = BigInt(Math.trunc(r.unitPrice * 100));
+        const gstAmtStored = BigInt(Math.trunc(gstAmt * 100));
+        const halfGstStored = BigInt(Math.trunc((gstAmt / 2) * 100));
         return {
           medicineId: BigInt(r.medicineId),
+          medicineName: r.medicineName,
           quantity: BigInt(r.qty),
-          unitPrice: BigInt(Math.round(r.unitPrice)),
-          gstAmount: BigInt(Math.round(gstAmt)),
+          unitPrice: unitPriceStored,
+          gstAmount: gstAmtStored,
           discountPercent: 0n,
+          hsnCode: r.hsn,
+          pack: r.pack,
+          batch: r.batch,
+          expiry: r.expiry,
+          sgst: halfGstStored,
+          cgst: halfGstStored,
         };
       });
 
+    // Subtotals as ×100 integers (no per-item rounding)
+    const subtotalInt = BigInt(Math.trunc(subtotal * 100));
+    const totalGSTInt = BigInt(Math.trunc(totalGST * 100));
+    // Round-off ONLY at Grand Total — this is the single rounding point
     const grandTotalInt = BigInt(Math.round(grandTotal));
-    const totalGSTInt = BigInt(Math.round(totalGST));
-    const subtotalInt = BigInt(Math.round(subtotal));
+
+    // Parse the user-edited invoice date back to a bigint timestamp (nanoseconds)
+    let parsedBillDate = bill.billDate;
+    try {
+      // Support DD-MM-YYYY and DD/MM/YYYY formats
+      const parts = invoiceDate.trim().split(/[-/]/);
+      if (parts.length === 3) {
+        const [dd, mm, yyyy] = parts;
+        const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+        if (!Number.isNaN(d.getTime())) {
+          parsedBillDate = BigInt(d.getTime()) * 1_000_000n;
+        }
+      }
+    } catch {
+      // keep original billDate if parsing fails
+    }
 
     const updatedBill: Bill = {
       ...bill,
@@ -600,6 +665,8 @@ function EditBillSheet({
       totalGST: totalGSTInt,
       subtotal: subtotalInt,
       totalDiscount: 0n,
+      billDate: parsedBillDate,
+      invoiceNumber: invoiceNumber.trim() || billNo(bill.billNumber),
     };
 
     updateBill.mutate(updatedBill, {
@@ -626,9 +693,26 @@ function EditBillSheet({
           className="px-6 pt-5 pb-4 border-b bg-[#1e3a5f]
  text-white"
         >
-          <SheetTitle className="text-white text-base">
-            Edit Bill — {billNo(bill.billNumber)}
-          </SheetTitle>
+          <div className="flex items-center justify-between gap-3">
+            <SheetTitle className="text-white text-base shrink-0">
+              Edit Bill —{" "}
+              {bill.invoiceNumber && bill.invoiceNumber.trim() !== ""
+                ? bill.invoiceNumber
+                : billNo(bill.billNumber)}
+            </SheetTitle>
+            <Button
+              size="sm"
+              className="bg-white text-[#1e3a5f] hover:bg-blue-50 gap-2 h-8 px-4 font-semibold shrink-0"
+              onClick={handleSave}
+              disabled={updateBill.isPending || rows.length === 0}
+              data-ocid="history.edit_save_top.button"
+            >
+              {updateBill.isPending && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              Save Changes
+            </Button>
+          </div>
         </SheetHeader>
 
         <ScrollArea className="flex-1">
@@ -649,7 +733,7 @@ function EditBillSheet({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Patient Phone</Label>
+                  <Label className="text-xs">Patient Address</Label>
                   <Input
                     data-ocid="history.edit_phone.input"
                     value={patientPhone}
@@ -667,7 +751,7 @@ function EditBillSheet({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Doctor Reg No.</Label>
+                  <Label className="text-xs">Doctor Address</Label>
                   <Input
                     data-ocid="history.edit_doctor_reg.input"
                     value={doctorRegNo}
@@ -676,11 +760,22 @@ function EditBillSheet({
                   />
                 </div>
                 <div className="space-y-1">
+                  <Label className="text-xs">Invoice No</Label>
+                  <Input
+                    data-ocid="history.edit_invoice_no.input"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder={billNo(bill.billNumber)}
+                    className="h-8 text-sm font-medium"
+                  />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs">Invoice Date</Label>
                   <Input
                     data-ocid="history.edit_date.input"
                     value={invoiceDate}
                     onChange={(e) => setInvoiceDate(e.target.value)}
+                    placeholder="DD-MM-YYYY"
                     className="h-8 text-sm"
                   />
                 </div>
@@ -1051,7 +1146,8 @@ export default function BillHistory() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {/* Only show skeletons when truly loading with no cached data at all */}
+          {isLoading && bills.length === 0 ? (
             <div className="p-4 space-y-2">
               {["a", "b", "c", "d", "e"].map((k) => (
                 <Skeleton key={k} className="h-10 w-full" />
@@ -1066,7 +1162,7 @@ export default function BillHistory() {
                     "Date",
                     "Customer",
                     "Doctor",
-                    "Doctor Reg No",
+                    "Doctor Address",
                     "Items",
                     "Total",
                     "",
@@ -1101,7 +1197,9 @@ export default function BillHistory() {
                       data-ocid={`history.item.${idx + 1}`}
                     >
                       <TableCell className="pl-5 font-medium">
-                        {billNo(bill.billNumber)}
+                        {bill.invoiceNumber && bill.invoiceNumber.trim() !== ""
+                          ? bill.invoiceNumber
+                          : billNo(bill.billNumber)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {fmtDate(bill.billDate)}
@@ -1112,7 +1210,9 @@ export default function BillHistory() {
                       <TableCell className="text-muted-foreground">
                         {custMap[String(bill.customerId)]?.email ?? "—"}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {custMap[String(bill.customerId)]?.address ?? "—"}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {bill.items.length} item
                         {bill.items.length !== 1 ? "s" : ""}
@@ -1208,7 +1308,9 @@ export default function BillHistory() {
                     </p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground text-xs">Phone</span>
+                    <span className="text-muted-foreground text-xs">
+                      Patient Address
+                    </span>
                     <p className="font-medium">
                       {custMap[String(selected.customerId)]?.phone ?? "—"}
                     </p>
@@ -1223,16 +1325,10 @@ export default function BillHistory() {
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs">
-                      Doctor Reg No
+                      Doctor Address
                     </span>
-                    <p className="font-medium text-muted-foreground">—</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">
-                      Address
-                    </span>
-                    <p className="font-medium">
-                      {custMap[String(selected.customerId)]?.address || "—"}
+                    <p className="font-medium text-muted-foreground">
+                      {custMap[String(selected.customerId)]?.address ?? "—"}
                     </p>
                   </div>
                   <div>
@@ -1279,10 +1375,21 @@ export default function BillHistory() {
                         const gstPct = Number(med?.gstPercent ?? 5);
                         const halfGst = gstPct / 2;
                         const amount = qty * mrp;
-                        const pack = getPackStr(med?.unit ?? "tablet");
-                        const hsn = (med as any)?.hsnCode ?? "";
-                        const batch = (med as any)?.batchNumber ?? "";
-                        const expiry = (med as any)?.expiryDate ?? "";
+                        const pack =
+                          (item as { pack?: string }).pack ||
+                          getPackStr(med?.unit ?? "tablet");
+                        const hsn =
+                          (item as { hsnCode?: string }).hsnCode ??
+                          (med as any)?.hsnCode ??
+                          "";
+                        const batch =
+                          (item as { batch?: string }).batch ||
+                          (med as any)?.batchNumber ||
+                          "";
+                        const expiry =
+                          (item as { expiry?: string }).expiry ||
+                          (med as any)?.expiryDate ||
+                          "";
                         return (
                           <TableRow
                             key={String(item.medicineId)}

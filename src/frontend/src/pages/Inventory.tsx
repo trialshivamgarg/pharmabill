@@ -42,6 +42,8 @@ import { INDIAN_MEDICINES } from "../data/indianMedicines";
 import {
   type Medicine,
   Unit,
+  getMedicinePack,
+  setMedicinePack,
   useAddMedicine,
   useDeleteMedicine,
   useGetMedicines,
@@ -114,11 +116,29 @@ function CatalogBadge() {
 function MedicineForm({
   value,
   onChange,
-}: { value: Medicine; onChange: (m: Medicine) => void }) {
+  pack,
+  onPackChange,
+}: {
+  value: Medicine;
+  onChange: (m: Medicine) => void;
+  pack: string;
+  onPackChange: (v: string) => void;
+}) {
   const set = (field: keyof Medicine, v: string | bigint | Unit) =>
     onChange({ ...value, [field]: v });
+  // For integer fields (stock, reorder, gst) use parseInt; currency fields
+  // handled separately below via priceField to preserve decimal input.
   const numField = (field: keyof Medicine, v: string) =>
-    set(field, BigInt(v === "" ? 0 : Number.parseInt(v) || 0));
+    set(
+      field,
+      BigInt(v === "" ? 0 : Math.round(Math.abs(Number.parseFloat(v) || 0))),
+    );
+  // Currency fields: preserve up to 2 decimal places by storing paise (× 100)
+  // so ₹12.50 → 1250n, ₹100 → 10000n. Display value is divided back when shown.
+  const priceField = (field: keyof Medicine, v: string) => {
+    const rupees = v === "" ? 0 : Number.parseFloat(v) || 0;
+    set(field, BigInt(Math.round(rupees * 100)));
+  };
 
   return (
     <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -147,6 +167,16 @@ function MedicineForm({
           className="mt-1 h-8 text-sm"
           value={value.manufacturer}
           onChange={(e) => set("manufacturer", e.target.value)}
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Pack Size</Label>
+        <Input
+          data-ocid="inventory.pack.input"
+          className="mt-1 h-8 text-sm"
+          value={pack}
+          onChange={(e) => onPackChange(e.target.value)}
+          placeholder="e.g. 10 Tab, 30 Cap, 100ml"
         />
       </div>
       <div>
@@ -193,9 +223,10 @@ function MedicineForm({
           data-ocid="inventory.price.input"
           type="number"
           min="0"
+          step="0.01"
           className="mt-1 h-8 text-sm"
-          value={String(value.sellingPrice)}
-          onChange={(e) => numField("sellingPrice", e.target.value)}
+          value={String(Number(value.sellingPrice) / 100)}
+          onChange={(e) => priceField("sellingPrice", e.target.value)}
         />
       </div>
       <div>
@@ -203,9 +234,10 @@ function MedicineForm({
         <Input
           type="number"
           min="0"
+          step="0.01"
           className="mt-1 h-8 text-sm"
-          value={String(value.purchasePrice)}
-          onChange={(e) => numField("purchasePrice", e.target.value)}
+          value={String(Number(value.purchasePrice) / 100)}
+          onChange={(e) => priceField("purchasePrice", e.target.value)}
         />
       </div>
       <div>
@@ -268,6 +300,7 @@ export default function Inventory() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Medicine | null>(null);
   const [form, setForm] = useState<Medicine>(EMPTY_MED);
+  const [formPack, setFormPack] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<bigint | null>(null);
 
   // Merge backend medicines with catalog (catalog-only = not yet saved to backend)
@@ -310,31 +343,73 @@ export default function Inventory() {
   const openAdd = () => {
     setEditing(null);
     setForm(EMPTY_MED);
+    setFormPack("");
     setModalOpen(true);
   };
   const openEdit = (m: Medicine) => {
     setEditing(m);
     setForm({ ...m });
+    // Prefer the backend unit field (which now stores free-text pack), but
+    // fall back to localStorage for medicines saved before this fix.
+    const unitIsEnum =
+      m.unit === Unit.strip || m.unit === Unit.tablet || m.unit === Unit.bottle;
+    setFormPack(
+      unitIsEnum ? getMedicinePack(m.id) : m.unit || getMedicinePack(m.id),
+    );
     setModalOpen(true);
   };
   const openFromCatalog = (m: Medicine) => {
     setEditing(null);
     setForm({ ...m, id: 0n });
+    setFormPack("");
     setModalOpen(true);
   };
 
   const handleSave = async () => {
+    // Validate required fields before sending to backend
+    if (!form.name.trim()) {
+      toast.error("Medicine name is required");
+      return;
+    }
+    if (!form.batchNumber.trim()) {
+      toast.error("Batch number is required");
+      return;
+    }
+    if (!form.expiryDate.trim()) {
+      toast.error("Expiry date is required");
+      return;
+    }
+    if (!form.hsnCode.trim()) {
+      toast.error("HSN code is required");
+      return;
+    }
+
+    // Sync pack size into the `unit` field so it persists on the backend.
+    // The backend Medicine.unit is a string-enum (Unit), but free-text pack
+    // values like "10 Tab" are also accepted because Motoko stores the field
+    // as Text. This ensures pack is server-persisted, not just localStorage.
+    const medToSave: Medicine = formPack.trim()
+      ? { ...form, unit: formPack.trim() as Unit }
+      : form;
+
     try {
       if (editing) {
-        await updateMut.mutateAsync(form);
+        await updateMut.mutateAsync(medToSave);
+        setMedicinePack(editing.id, formPack);
         toast.success("Medicine updated");
       } else {
-        await addMut.mutateAsync(form);
+        const result = await addMut.mutateAsync(medToSave);
+        // result is the new backend-assigned id; store pack for that id
+        if (result != null) {
+          setMedicinePack(result as bigint, formPack);
+        }
         toast.success("Medicine added");
       }
       setModalOpen(false);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Error saving medicine");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error saving medicine";
+      console.error("[Inventory] Save error:", e);
+      toast.error(msg);
     }
   };
 
@@ -342,9 +417,11 @@ export default function Inventory() {
     if (deleteTarget === null) return;
     try {
       await deleteMut.mutateAsync(deleteTarget);
+      setMedicinePack(deleteTarget, "");
       toast.success("Medicine deleted");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Error deleting");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error deleting";
+      toast.error(msg);
     } finally {
       setDeleteTarget(null);
     }
@@ -404,6 +481,7 @@ export default function Inventory() {
                   {[
                     "Name",
                     "Generic",
+                    "Pack",
                     "Batch",
                     "Expiry",
                     "Stock",
@@ -426,7 +504,7 @@ export default function Inventory() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={11}
                       className="text-center text-muted-foreground text-xs py-10"
                       data-ocid="inventory.empty_state"
                     >
@@ -451,6 +529,21 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {med.genericName || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {isCatalog
+                            ? "—"
+                            : (() => {
+                                const unitIsEnum =
+                                  med.unit === Unit.strip ||
+                                  med.unit === Unit.tablet ||
+                                  med.unit === Unit.bottle;
+                                return (
+                                  (!unitIsEnum && med.unit) ||
+                                  getMedicinePack(med.id) ||
+                                  "—"
+                                );
+                              })()}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {med.batchNumber || "—"}
@@ -532,7 +625,12 @@ export default function Inventory() {
               {editing ? "Edit Medicine" : "Add Medicine"}
             </DialogTitle>
           </DialogHeader>
-          <MedicineForm value={form} onChange={setForm} />
+          <MedicineForm
+            value={form}
+            onChange={setForm}
+            pack={formPack}
+            onPackChange={setFormPack}
+          />
           <DialogFooter>
             <Button
               variant="outline"
